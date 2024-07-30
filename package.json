@@ -15,7 +15,16 @@
     "npm": ">=10"
   },
   "scripts": {
-    "test": "test"
+    "compile": "hardhat compile",
+    "lint-sol": "yarn solhint ./contracts/**/*.sol",
+    "lint-ts": "yarn eslint ./test/** ./src/**",
+    "lint": "yarn lint-sol & yarn lint-ts --no-error-on-unmatched-pattern",
+    "clean": "hardhat clean",
+    "build": "yarn run clean && yarn run compile",
+    "typechain": "hardhat typechain",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "check-coverage": "istanbul check-coverage --statements 90 --branches 87 --functions 89 --lines 90"
   },
   "devDependencies": {
     "@zero-tech/eslint-config-cpt": "0.2.7",

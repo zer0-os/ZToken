@@ -1,0 +1,35 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@4.7.0
+  codecov: codecov/codecov@3.2.4
+
+defaults: &defaults
+  working_directory: ~/repo
+  docker:
+    - image: cimg/node:18.20.3
+
+jobs:
+  test and coverage:
+    <<: *defaults
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: yarn
+      - run: yarn build
+      - run: yarn lint
+      - run:
+          name: Code Coverage Report
+          command: yarn coverage
+      - codecov/upload
+      - run:
+          name: Validate Code Coverage Threshold
+          command: yarn check-coverage #Validate code is adequately covered by unit tests
+      - persist_to_workspace:
+          root: ~/repo
+          paths: [.]
+workflows:
+  version: 2
+  build:
+    jobs:
+      - test and coverage
