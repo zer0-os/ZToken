@@ -9,9 +9,9 @@ contract MeowToken is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /*** Inflation Constants ***/
-//    uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
+    uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
     // TODO: remove this constant when done testing!
-    uint256 public constant INITIAL_SUPPLY_BASE = 1000000000;
+//    uint256 public constant INITIAL_SUPPLY_BASE = 1000000000;
     uint256 public constant BASE_INFLATION_RATE = 900; // 9%
     uint256 public constant INFLATION_RATE_DECAY = 1500; // 15%
     uint256 public constant MIN_INFLATION_RATE = 150; // 1.5%
@@ -54,16 +54,15 @@ contract MeowToken is ERC20, AccessControl {
 //    }
 
     function yearsSinceDeploy(uint256 currentTime) public view returns (uint256) {
+        // TODO: figure out overflow here when start using block.timestamp!
         return (currentTime >= deployTime) ? (currentTime - deployTime) / 365 days : 0;
     }
 
-    function currentInflationRate(uint256 currentTime) public view returns (uint256) {
-        uint256 yearsElapsed = yearsSinceDeploy(currentTime);
-
+    function currentInflationRate(uint256 yearIndex) public view returns (uint256) {
         uint256 newInflationRate = lastInflationRate;
-        for (uint256 i = 0; i < yearsElapsed; i++) {
+        for (uint256 i = 0; i < yearIndex; i++) {
             if (newInflationRate > MIN_INFLATION_RATE) {
-            newInflationRate = newInflationRate * (BASIS_POINTS - INFLATION_RATE_DECAY) / BASIS_POINTS;
+                newInflationRate = newInflationRate * (BASIS_POINTS - INFLATION_RATE_DECAY) / BASIS_POINTS;
             } else {
                 newInflationRate = MIN_INFLATION_RATE;
                 break;
@@ -73,17 +72,40 @@ contract MeowToken is ERC20, AccessControl {
         return newInflationRate;
     }
 
-    function tokens(uint256 currentTime) public view returns (uint256) {
+    function tokens(uint256 currentTime) public view returns (uint256, uint256, uint256, uint256, uint256) {
+        // TODO: should this be years since last mint instead of deploy?
         uint256 yearsElapsed = yearsSinceDeploy(currentTime);
+        // TODO: change to dynamic totalSupply!
         uint256 totalSupply = INITIAL_SUPPLY_BASE * 10 ** decimals();
-        uint256 inflationRate = currentInflationRate(currentTime);
+        uint256 inflationRate = lastInflationRate;
 
-        for (uint256 i = 0; i < yearsElapsed; i++) {
-            totalSupply += totalSupply * inflationRate / BASIS_POINTS;
-            inflationRate = inflationRate * (BASIS_POINTS - INFLATION_RATE_DECAY) / BASIS_POINTS;
+        uint256 tokensAccumulated;
+        uint256 yearsTokens = totalSupply;
+        // TODO: possibly change for an updated state variable after every year pass!
+        //  Figure out when to add 1 to yearsElapsed !
+        uint256 currentYearEnd = deployTime + (yearsElapsed + 1) * 365 days;
+        // TODO: refactor this later!
+        uint256 periodTokens;
+        for (uint256 i = 0; i <= yearsElapsed; i++) {
+            inflationRate = currentInflationRate(i);
+            yearsTokens = totalSupply * inflationRate / BASIS_POINTS;
+            totalSupply += yearsTokens;
+            if (i != yearsElapsed) {
+                tokensAccumulated += yearsTokens;
+            } else {
+                uint256 incompleteYearSeconds = currentYearEnd - currentTime;
+                periodTokens = yearsTokens / 365 days * incompleteYearSeconds ;
+                tokensAccumulated += periodTokens;
+            }
         }
 
-        return totalSupply;
+        return (
+            tokensAccumulated,
+            yearsElapsed,
+            yearsTokens,
+            periodTokens,
+            inflationRate
+        );
     }
 
     function calculateMintableTokens(uint256 currentTime) public view returns (uint256, uint256) {
@@ -126,7 +148,8 @@ contract MeowToken is ERC20, AccessControl {
         while (time < currentTime) {
             uint256 yearsElapsed = yearsSinceDeploy(currentTime);
             uint256 inflationRate = currentInflationRate(currentTime);
-            uint256 yearEnd = time + 365 days;
+            uint256 yearStart = deployTime + yearsElapsed * 365 days;
+            uint256 yearEnd = yearStart + 65 days;
             uint256 secondsInPeriod;
 
             if (currentTime < yearEnd) {

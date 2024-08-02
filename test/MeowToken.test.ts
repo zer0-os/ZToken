@@ -17,7 +17,7 @@ describe("MeowToken Test", () => {
   });
 
   describe("Inflation Calculations", () => {
-    it.only("#calculateInflationRate()", async () => {
+    it("#calculateInflationRate()", async () => {
       const deployTime = await meowToken.deployTime();
 
       let newTime;
@@ -25,7 +25,7 @@ describe("MeowToken Test", () => {
       for (let i = 0; i < 20; i++) {
         newTime = deployTime + 31536000n * BigInt(i);
 
-        inflationRate = await meowToken.currentInflationRate(newTime);
+        inflationRate = await meowToken.currentInflationRate(i);
 
         console.log("IDX: ", i,"New Time: ", newTime.toString(), "Inflation Rate: ", inflationRate.toString());
       }
@@ -46,7 +46,7 @@ describe("MeowToken Test", () => {
       console.log("Tokens: ", tokens.toString());
     });
 
-    it.only("#mintableTokens()", async () => {
+    it("#mintableTokens()", async () => {
       const newDeployTime = 1722542400n;
       await meowToken.setDeployTime(newDeployTime);
 
@@ -55,6 +55,17 @@ describe("MeowToken Test", () => {
       // const refAmount = 710031064917234384471793251n;
 
       const tokens = await meowToken.mintableTokens(curTime);
+      console.log("Tokens: ", tokens.toString());
+    });
+
+    it.only("#tokens()", async () => {
+      const newDeployTime = 1722542400n;
+      await meowToken.setDeployTime(newDeployTime);
+
+      // const curTime = newDeployTime + 31536000n / 5n;
+      const curTime = 1770498000n;
+
+      const tokens = await meowToken.tokens(curTime);
       console.log("Tokens: ", tokens.toString());
     });
   });
@@ -70,9 +81,10 @@ describe("MeowToken Test", () => {
 // 402,329,804.89789571917808219178082 - from start of year 2
 // 1,311,420,713.9878957191780821917808 - total
 
+// FOR 1000000000 INITIAL SUPPLY
 // 90,000,000 - year 1
-// 76,500,000 - year 2
-// 0.52 - portion of year passed
+// 76,500,000 - year 2 (from INITIAL) or
+// 0.5206621004566210045662100456621 - portion of year passed
 // 39,830,650.684931506849315068493151 - from start of year 2
 // 129,830,650.68493150684931506849315 - total
 // 0.2 - part of year 1 passed
