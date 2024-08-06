@@ -17,7 +17,7 @@ describe("MeowToken Test", () => {
   });
 
   describe("Inflation Calculations", () => {
-    it("#calculateInflationRate()", async () => {
+    it("#currentInflationRate()", async () => {
       const deployTime = await meowToken.deployTime();
 
       let newTime;
@@ -58,16 +58,85 @@ describe("MeowToken Test", () => {
       console.log("Tokens: ", tokens.toString());
     });
 
-    it.only("#tokens()", async () => {
+    it("#tokens()", async () => {
       const newDeployTime = 1722542400n;
       await meowToken.setDeployTime(newDeployTime);
 
-      // const curTime = newDeployTime + 31536000n / 5n;
-      const curTime = 1770498000n;
+      for (let i = 0; i < 16; i++) {
+        const curTime = newDeployTime + 31536000n * BigInt(i);
+        // const curTime = 1770498000n;
 
-      const tokens = await meowToken.tokens(curTime);
-      console.log("Tokens: ", tokens.toString());
+        const tokens = await meowToken.tokens(curTime);
+        console.log("Tokens: ", tokens.toString());
+      }
     });
+
+    it.only("reference formula", async () => {
+      const inflationRate = [
+        900n,
+        765n,
+        650n,
+        552n,
+        469n,
+        398n,
+        338n,
+        287n,
+        243n,
+        206n,
+        175n,
+        150n,
+      ];
+
+      for (let k = 0; k < 20; k++) {
+        const getTotalSupplyForYear = (year : bigint) => {
+          const yearIdx = Number(year);
+          let totalSupply = 1000000000n * 10n ** 18n;
+          let tokensPerYear = 0n;
+          for (let i = 0; i <= yearIdx; i++) {
+            const rate = inflationRate[i] || 150n;
+            tokensPerYear = totalSupply / 10000n * rate;
+            totalSupply = i !== yearIdx ? totalSupply + tokensPerYear : totalSupply;
+          }
+
+          return {
+            totalSupply,
+            tokensPerYear,
+          };
+        };
+
+        const initialSupply = 1000000000n * 10n ** 18n;
+        const startTime = 1722542400n;
+        const currentTime = startTime + 31536000n * BigInt(k);
+        const timeDiff = currentTime - startTime;
+
+        const yearsPassed = timeDiff / 31536000n;
+        const {
+          totalSupply,
+          tokensPerYear,
+        } = getTotalSupplyForYear(yearsPassed);
+
+        const yearStartTime = startTime + yearsPassed * 31536000n;
+        const tokensPerPeriod = tokensPerYear * (currentTime - yearStartTime) / 31536000n;
+        const mintableTokens = totalSupply - initialSupply + tokensPerPeriod;
+        console.log(
+          "Years Passed:", yearsPassed.toString(), ", ",
+          "Inflation Rate (out of 10,000%):", inflationRate[Number(yearsPassed)] || 150n, ", ",
+          "Mintable Tokens Per Year:", mintableTokens.toString(), ", ",
+          "Total Supply:", totalSupply.toString()
+        );
+      }
+    });
+  });
+
+  it("#getInflation()", async () => {
+    const newDeployTime = 1722542400n;
+    await meowToken.setDeployTime(newDeployTime);
+
+    // timeDiff = 47,955,600
+    const curTime = 1770498000n;
+
+    const tokens = await meowToken.getInflation(curTime);
+    console.log("Tokens: ", tokens.toString());
   });
 });
 
