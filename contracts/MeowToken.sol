@@ -11,156 +11,137 @@ contract MeowToken is ERC20, AccessControl {
     /*** Inflation Constants ***/
     uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
     // TODO: remove this constant when done testing!
-//    uint256 public constant INITIAL_SUPPLY_BASE = 1000000000;
+    uint256 public constant INITIAL_SUPPLY_BASE = 1000000000;
+
     uint256 public constant BASE_INFLATION_RATE = 900; // 9%
     uint256 public constant INFLATION_RATE_DECAY = 1500; // 15%
     uint256 public constant MIN_INFLATION_RATE = 150; // 1.5%
     uint256 public constant BASIS_POINTS = 10000;
-    uint256 public constant BASE_MULTI = 10 ** 18;
 
-    // TODO: make immutable when done testing!
+    // TODO: make immutable when done testing! DO we actually need both??
     uint256 public deployTime;
-    uint256 public lastMintTime;
 
-    uint256 public lastInflationRate = BASE_INFLATION_RATE;
+    uint256 public lastMintYear;
+    uint256 public lastMintLeftoverTokens;
+
+    uint16[12] public YEARLY_INFLATION_RATES = [
+        900,
+        765,
+        650,
+        552,
+        469,
+        398,
+        338,
+        287,
+        243,
+        206,
+        175,
+        150
+    ];
 
     constructor(address defaultAdmin, address minter) ERC20("MEOW", "MEOW") {
         _mint(msg.sender, INITIAL_SUPPLY_BASE * 10 ** decimals());
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(MINTER_ROLE, minter);
         deployTime = block.timestamp;
-        lastMintTime = deployTime;
     }
 
     // TODO: inflation formula goes here!
-    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
-        _mint(to, amount);
+    //  Do we want to specify address each time or use a state var?
+    function mint(address to) public onlyRole(MINTER_ROLE) {
+        (
+            uint256 totalToMint,
+            uint256 inflationRate,
+            uint256 tokensForYear,
+            uint256 currentYearMintableTokens
+        ) = getMintableTokensAmount(block.timestamp);
+        lastMintLeftoverTokens = tokensForYear - currentYearMintableTokens;
+        lastMintYear = yearsSinceDeploy(block.timestamp) + 1;
+        _mint(to, totalToMint);
     }
 
-    function yearsSinceDeploy(uint256 currentTime) public view returns (uint256) {
+    // TODO: should this function return current year instead to not use +1 everywhere?
+    function yearsSinceDeploy(uint256 time) public view returns (uint256) {
         // TODO: figure out overflow here when start using block.timestamp!
-        return (currentTime >= deployTime) ? (currentTime - deployTime) / 365 days : 0;
+        return (time >= deployTime) ? (time - deployTime) / 365 days : 0;
     }
 
     function currentInflationRate(uint256 yearIndex) public view returns (uint256) {
-        uint256 newInflationRate = lastInflationRate;
-        for (uint256 i = 0; i < yearIndex; i++) {
-            if (newInflationRate > MIN_INFLATION_RATE) {
-                newInflationRate = newInflationRate * (BASIS_POINTS - INFLATION_RATE_DECAY) / BASIS_POINTS;
-            } else {
-                newInflationRate = MIN_INFLATION_RATE;
-                break;
-            }
+        if (yearIndex >= YEARLY_INFLATION_RATES.length) {
+            return MIN_INFLATION_RATE;
         }
+        return YEARLY_INFLATION_RATES[yearIndex];
 
-        return newInflationRate;
+//        uint256 newInflationRate = lastInflationRate;
+//        for (uint256 i = 0; i < yearIndex; i++) {
+//            if (newInflationRate > MIN_INFLATION_RATE) {
+//                newInflationRate = newInflationRate * (BASIS_POINTS - INFLATION_RATE_DECAY) / BASIS_POINTS;
+//                if (newInflationRate < MIN_INFLATION_RATE) {
+//                    newInflationRate = MIN_INFLATION_RATE;
+//                    break;
+//                }
+//            } else {
+//                newInflationRate = MIN_INFLATION_RATE;
+//                break;
+//            }
+//        }
+//
+//        return newInflationRate;
     }
 
-    function tokens(uint256 currentTime) public view returns (uint256, uint256, uint256, uint256, uint256) {
-        // TODO: should this be years since last mint instead of deploy?
-        uint256 yearsElapsed = yearsSinceDeploy(currentTime);
-        // TODO: change to dynamic totalSupply!
-        uint256 totalSupply = INITIAL_SUPPLY_BASE * 10 ** decimals();
-        uint256 inflationRate = lastInflationRate;
+    function _tokensPerPeriod(uint256 tokensPerYear, uint256 periodSeconds) internal pure returns (uint256) {
+        return tokensPerYear * periodSeconds / 365 days;
+    }
 
-        uint256 tokensAccumulated;
-        uint256 yearsTokens = totalSupply;
+//    function getFullYearsElapsed(uint256 time) public view returns (uint256) {
+//        // TODO: SLOAD per call here! 2 total!
+//        uint256 yearsElapsedSinceDeploy = yearsSinceDeploy(time);
+//
+//        // TODO: `lastMintYear` - SLOAD twice!
+//        uint256 yearsSinceLastMint = yearsElapsedSinceDeploy <= lastMintYear
+//            ? 0 : yearsElapsedSinceDeploy - lastMintYear;
+//
+//        return (
+//            yearsElapsedSinceDeploy,
+//            yearsSinceLastMint
+//        );
+//    }
+
+    function getMintableTokensAmount(uint256 currentTime) public view returns (uint256, uint256, uint256, uint256) {
+        uint256 yearsFromDeploy = yearsSinceDeploy(currentTime);
+
+        uint256 totalSupply = totalSupply();
+        uint256 inflationRate;
+        uint256 mintableTokens;
+        uint256 yearsTokens;
         // TODO: possibly change for an updated state variable after every year pass!
-        //  Figure out when to add 1 to yearsElapsed !
-        uint256 currentYearStart = deployTime + yearsElapsed * 365 days;
+        uint256 currentYearStart = deployTime + yearsFromDeploy * 365 days;
         // TODO: refactor this later!
         uint256 periodTokens;
-        for (uint256 i = 0; i <= yearsElapsed; i++) {
+        for (uint256 i = lastMintYear; i <= yearsFromDeploy + 1; i++) {
             inflationRate = currentInflationRate(i);
             yearsTokens = totalSupply * inflationRate / BASIS_POINTS;
             totalSupply += yearsTokens;
-            if (i != yearsElapsed) {
-                tokensAccumulated += yearsTokens;
+            if (i != yearsFromDeploy + 1) {
+                mintableTokens += yearsTokens;
             } else {
-                uint256 incompleteYearSeconds = currentYearStart - currentTime;
-                periodTokens = yearsTokens / 365 days * incompleteYearSeconds;
-                tokensAccumulated += periodTokens;
+                uint256 incompleteYearSeconds = currentTime - currentYearStart;
+                periodTokens = yearsTokens * incompleteYearSeconds / 365 days;
+                mintableTokens += periodTokens;
             }
         }
 
+        // TODO: remove extra returns!
         return (
-            tokensAccumulated,
-            yearsElapsed,
+            mintableTokens,
+            inflationRate,
             yearsTokens,
-            periodTokens,
-            inflationRate
+            periodTokens
         );
-    }
-
-    function calculateMintableTokens(uint256 currentTime) public view returns (uint256, uint256) {
-        uint256 yearsPassed = yearsSinceDeploy(currentTime);
-        uint256 currentYearStart = deployTime + yearsPassed * 365 days;
-
-        uint256 totalSupply = INITIAL_SUPPLY_BASE * 10 ** decimals();
-        uint256 yearlyInflationRate;
-        for (uint256 i = 0; i < yearsPassed; i++) {
-            uint256 yearStart = deployTime + (i * 365 days);
-            uint256 yearlyInflationRate = currentInflationRate(yearStart);
-            totalSupply += totalSupply * yearlyInflationRate / BASIS_POINTS;
-        }
-
-        yearlyInflationRate = currentInflationRate(currentYearStart);
-        uint256 totalMintableForYear = totalSupply * yearlyInflationRate / BASIS_POINTS;
-
-        // Calculate the proportion of the year elapsed
-        uint256 timeElapsedInYear = currentTime - currentYearStart;
-        uint256 proportionOfYearElapsed = timeElapsedInYear * BASIS_POINTS / 365 days;
-
-        // Calculate mintable tokens based on the proportion of the year elapsed
-        uint256 tokensTotal = totalMintableForYear * proportionOfYearElapsed / BASIS_POINTS;
-        return (tokensTotal, yearsPassed);
     }
 
     // TODO: delete this function when done testing!
     function setDeployTime(uint256 newDeployTime) public {
         deployTime = newDeployTime;
     }
-
-    function mintableTokens(uint256 currentTime) public view returns (uint256, uint256, uint256, uint256) {
-        uint256 totalMintable = 0;
-        // TODO: uncomment this and remove the param when done testing!
-//        uint256 currentTime = block.timestamp;
-        uint256 time = deployTime;
-
-        uint256 yearlyMintableTokens;
-        uint256 periodMintableTokens;
-        while (time < currentTime) {
-            uint256 yearsElapsed = yearsSinceDeploy(currentTime);
-            uint256 inflationRate = currentInflationRate(currentTime);
-            uint256 yearStart = deployTime + yearsElapsed * 365 days;
-            uint256 yearEnd = yearStart + 65 days;
-            uint256 secondsInPeriod;
-
-            if (currentTime < yearEnd) {
-                secondsInPeriod = currentTime - time;
-                time = currentTime;
-            } else {
-                secondsInPeriod = yearEnd - time;
-                time = yearEnd;
-            }
-
-            yearlyMintableTokens = (totalSupply() * inflationRate) / BASIS_POINTS;
-            periodMintableTokens = (yearlyMintableTokens * secondsInPeriod) / 365 days;
-            totalMintable += periodMintableTokens;
-        }
-
-        return (
-            totalMintable,
-            yearlyMintableTokens,
-            periodMintableTokens,
-            (currentTime - lastMintTime) * BASIS_POINTS / 365 days
-        );
-    }
-
-    // write a function that calculates how many tokens can be minted based on the following rules:
-    // 1. 9% inflation rate per year that decreases by 15% every year until it hits overall 1.5% inflation rate
-    // 2. it should be dynamic, meaning the minter can mint at any time and the inflation rate should be calculated based on the current block timestamp
-    // 3. if minter is minting half way though a year, then he should be able to only mint half the amount
-    // 4. the function should return the amount of tokens that can be minted
-    // function code goes below
 }

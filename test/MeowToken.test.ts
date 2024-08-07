@@ -59,15 +59,17 @@ describe("MeowToken Test", () => {
       console.log("Tokens: ", tokens.toString());
     });
 
-    it("#tokens()", async () => {
-      const newDeployTime = 1722542400n;
-      await meowToken.setDeployTime(newDeployTime);
+    it.only("#getMintableTokensAmount()", async () => {
+      // const newDeployTime = 1722542400n;
+      // await meowToken.setDeployTime(newDeployTime);
+      const deployTime = await meowToken.deployTime();
+      // const lastMintTime = await meowToken.lastMintTime();
 
       for (let i = 0; i < 16; i++) {
-        const curTime = newDeployTime + 31536000n * BigInt(i);
+        const curTime = deployTime + 31536000n * BigInt(i);
         // const curTime = 1770498000n;
 
-        const tokens = await meowToken.tokens(curTime);
+        const tokens = await meowToken.getMintableTokensAmount(curTime);
         console.log("Tokens: ", tokens.toString());
       }
     });
