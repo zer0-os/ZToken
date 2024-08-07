@@ -9,9 +9,9 @@ contract MeowToken is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /*** Inflation Constants ***/
-//    uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
+    uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
     // TODO: remove this constant when done testing!
-    uint256 public constant INITIAL_SUPPLY_BASE = 1000000000;
+//    uint256 public constant INITIAL_SUPPLY_BASE = 1000000000;
     uint256 public constant BASE_INFLATION_RATE = 900; // 9%
     uint256 public constant INFLATION_RATE_DECAY = 1500; // 15%
     uint256 public constant MIN_INFLATION_RATE = 150; // 1.5%
@@ -37,22 +37,6 @@ contract MeowToken is ERC20, AccessControl {
         _mint(to, amount);
     }
 
-//    function calcInflation() public view returns (uint256) {
-//        uint256 timePassed = block.timestamp - deployTime;
-//        uint256 yearsPassed = timePassed / 1 years;
-//        uint256 exponent = BASE_MULTI / 365 days;
-//
-//        uint256 inflation = BASE_INFLATION_RATE * (
-//            ((BASIS_POINTS - INFLATION_RATE_DECAY) ** exponent)
-//        ) ** timePassed;
-//
-//        if (inflation < MIN_INFLATION_RATE) {
-//            return MIN_INFLATION_RATE;
-//        }
-//
-//        return inflation;
-//    }
-
     function yearsSinceDeploy(uint256 currentTime) public view returns (uint256) {
         // TODO: figure out overflow here when start using block.timestamp!
         return (currentTime >= deployTime) ? (currentTime - deployTime) / 365 days : 0;
@@ -63,10 +47,6 @@ contract MeowToken is ERC20, AccessControl {
         for (uint256 i = 0; i < yearIndex; i++) {
             if (newInflationRate > MIN_INFLATION_RATE) {
                 newInflationRate = newInflationRate * (BASIS_POINTS - INFLATION_RATE_DECAY) / BASIS_POINTS;
-                if (newInflationRate < MIN_INFLATION_RATE) {
-                    newInflationRate = MIN_INFLATION_RATE;
-                    break;
-                }
             } else {
                 newInflationRate = MIN_INFLATION_RATE;
                 break;
@@ -87,7 +67,6 @@ contract MeowToken is ERC20, AccessControl {
         uint256 yearsTokens = totalSupply;
         // TODO: possibly change for an updated state variable after every year pass!
         //  Figure out when to add 1 to yearsElapsed !
-        // TODO: should there be a +1 to the year start?
         uint256 currentYearStart = deployTime + yearsElapsed * 365 days;
         // TODO: refactor this later!
         uint256 periodTokens;
@@ -98,15 +77,15 @@ contract MeowToken is ERC20, AccessControl {
             if (i != yearsElapsed) {
                 tokensAccumulated += yearsTokens;
             } else {
-                uint256 incompleteYearSeconds = currentTime - currentYearStart;
-                periodTokens = yearsTokens * incompleteYearSeconds / 365 days;
+                uint256 incompleteYearSeconds = currentYearStart - currentTime;
+                periodTokens = yearsTokens / 365 days * incompleteYearSeconds;
                 tokensAccumulated += periodTokens;
             }
         }
 
         return (
             tokensAccumulated,
-            currentTime - currentYearStart,
+            yearsElapsed,
             yearsTokens,
             periodTokens,
             inflationRate
@@ -184,29 +163,4 @@ contract MeowToken is ERC20, AccessControl {
     // 3. if minter is minting half way though a year, then he should be able to only mint half the amount
     // 4. the function should return the amount of tokens that can be minted
     // function code goes below
-
-    function getInflation(uint256 currentTime) public view returns (uint256, uint256, uint256) {
-        uint256 tokenForMaxInflation = INITIAL_SUPPLY_BASE * 10 ** decimals() * BASE_INFLATION_RATE / BASIS_POINTS;
-        uint256 inflationDecreasePerSec = BASE_INFLATION_RATE * INFLATION_RATE_DECAY * 1e18 / 365 days;
-        uint256 timePassed = currentTime - deployTime;
-
-        uint256 decreasePerPeriod = inflationDecreasePerSec * timePassed;
-
-        uint256 currentTempRate = BASE_INFLATION_RATE * 1e18 - decreasePerPeriod;
-
-        uint256 finalRate;
-        if (currentTempRate < MIN_INFLATION_RATE * 1e18) {
-            finalRate = MIN_INFLATION_RATE * 1e18;
-        } else {
-            finalRate = currentTempRate;
-        }
-
-        uint256 mintableTokens = INITIAL_SUPPLY_BASE * 10 ** decimals() * finalRate / (BASIS_POINTS * 1e18);
-
-        return (
-            mintableTokens,
-            finalRate,
-            decreasePerPeriod
-        );
-    }
 }

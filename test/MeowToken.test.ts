@@ -3,13 +3,14 @@ import { ethers } from "ethers";
 import { expect } from "chai";
 import { MeowToken } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import { percents } from "./helpers/percents";
 
 
 describe("MeowToken Test", () => {
   let meowToken : MeowToken;
   let admin : SignerWithAddress;
 
-  before(async () => {
+  beforeEach(async () => {
     [admin] = await hre.ethers.getSigners();
 
     const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
@@ -71,7 +72,7 @@ describe("MeowToken Test", () => {
       }
     });
 
-    it.only("reference formula", async () => {
+    it("reference formula", async () => {
       const inflationRate = [
         900n,
         765n,
@@ -126,6 +127,86 @@ describe("MeowToken Test", () => {
         );
       }
     });
+
+    it("Should return 0 mintable tokens with 0 passed time", async () => {
+      const deployTime = 1722542400n;
+      await meowToken.setDeployTime(deployTime);
+
+      // spend 0 seconds
+      const firstMintTime = deployTime;
+
+      await expect(
+        await meowToken.calculateMintableTokens(firstMintTime)
+      ).to.be.equal(
+        0n
+      );
+    });
+
+    it("Should return correct years amount of tokens, increased each year", async () => {
+
+      // TODO myself: why do we dont pass initial supply?
+
+      const deployTime = 1722542400n;
+
+      let currentTime = deployTime;
+      let currentTokens = 0n;
+
+      for (let year = 1; year < 10; year++) {
+        // + year each iteration
+        currentTime += 31536000n;
+
+        const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
+
+        expect(
+          tokensFromContract
+        ).to.be.equal(
+          currentTokens += currentTokens / 100n * percents[year]
+        );
+      }
+    });
+
+    it("Should return correct years amount of tokens, increased each year (another)", async () => {
+      const resultTokens = [
+        0,
+        90000000000000000000000000,
+        173385000000000000000000000,
+        249655025000000000000000000,
+        318635982380000000000000000,
+        380480009953622000000000000,
+        435423114349776155600000000,
+        483940415614798589659280000,
+        526529505542943309182501336,
+        563624172527636831595636118,
+        595834830481706150326506222,
+        623761940015136007957220080,
+        648118369115363048076578381,
+        672840144652093493797727056,
+        697932746821874896204692961,
+        723401738024203019647763355,
+      ];
+
+      const initialSupply = 1000000000n * 10n ** 18n;
+
+      const deployTime = 1722542400n;
+      let currentTime = deployTime;
+
+      for (let year = 1; year < 15; year++) {
+        currentTime += 31536000n;
+
+        const tokensFromContract = await meowToken.tokens(currentTime);
+
+        await expect(
+          tokensFromContract
+        ).to.be.equal(
+          resultTokens[year]
+        );
+      }
+
+    });
+
+    it("Should return correct amount of tokens, increased each 10000 sec", async () => {
+
+    });
   });
 
   it("#getInflation()", async () => {
@@ -139,22 +220,3 @@ describe("MeowToken Test", () => {
     console.log("Tokens: ", tokens.toString());
   });
 });
-
-// 909,090,909,090,000,000,000,000,000 - 1 year
-// 772,727,272,726,500,000,000,000,000 - 2 year
-// 0.5206621004566210045662100456621 - portion of year passed
-
-// 909,090,909.09 - year 1
-// 772,727,272.7265 - year 2
-// 0.5206621004566210045662100456621 - portion of year passed
-// 402,329,804.89789571917808219178082 - from start of year 2
-// 1,311,420,713.9878957191780821917808 - total
-
-// FOR 1000000000 INITIAL SUPPLY
-// 90,000,000 - year 1
-// 76,500,000 - year 2 (from INITIAL) or
-// 0.5206621004566210045662100456621 - portion of year passed
-// 39,830,650.684931506849315068493151 - from start of year 2
-// 129,830,650.68493150684931506849315 - total
-// 0.2 - part of year 1 passed
-// 18,000,000 - total tokens from start of year 1
