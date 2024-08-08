@@ -56,7 +56,7 @@ contract MeowToken is ERC20, AccessControl {
             uint256 currentYearMintableTokens
         ) = getMintableTokensAmount(block.timestamp);
         lastMintLeftoverTokens = tokensForYear - currentYearMintableTokens;
-        lastMintYear = yearsSinceDeploy(block.timestamp) + 1;
+        lastMintYear = yearsSinceDeploy(block.timestamp);
         _mint(to, totalToMint);
     }
 
@@ -110,22 +110,29 @@ contract MeowToken is ERC20, AccessControl {
     function getMintableTokensAmount(uint256 currentTime) public view returns (uint256, uint256, uint256, uint256) {
         uint256 yearsFromDeploy = yearsSinceDeploy(currentTime);
 
-        uint256 totalSupply = totalSupply();
         uint256 inflationRate;
-        uint256 mintableTokens;
+        uint256 mintableTokens = lastMintLeftoverTokens;
+        uint256 totalSupply = totalSupply() + mintableTokens;
         uint256 yearsTokens;
         // TODO: possibly change for an updated state variable after every year pass!
         uint256 currentYearStart = deployTime + yearsFromDeploy * 365 days;
+        uint256 incompleteYearSeconds = currentTime - currentYearStart;
         // TODO: refactor this later!
         uint256 periodTokens;
-        for (uint256 i = lastMintYear; i <= yearsFromDeploy + 1; i++) {
+
+        uint256 lastYear = lastMintLeftoverTokens == 0 ? lastMintYear : lastMintYear + 1;
+        for (uint256 i = lastYear; i <= yearsFromDeploy; i++) {
             inflationRate = currentInflationRate(i);
+            if (lastMintYear == yearsFromDeploy && mintableTokens > 0) {
+                break;
+            }
+
             yearsTokens = totalSupply * inflationRate / BASIS_POINTS;
-            totalSupply += yearsTokens;
-            if (i != yearsFromDeploy + 1) {
+
+            if (i != yearsFromDeploy) {
+                totalSupply += yearsTokens;
                 mintableTokens += yearsTokens;
             } else {
-                uint256 incompleteYearSeconds = currentTime - currentYearStart;
                 periodTokens = yearsTokens * incompleteYearSeconds / 365 days;
                 mintableTokens += periodTokens;
             }
@@ -139,6 +146,7 @@ contract MeowToken is ERC20, AccessControl {
             periodTokens
         );
     }
+
 
     // TODO: delete this function when done testing!
     function setDeployTime(uint256 newDeployTime) public {
