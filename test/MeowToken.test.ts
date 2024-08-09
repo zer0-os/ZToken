@@ -1,10 +1,13 @@
+/* eslint-disable prefer-arrow/prefer-arrow-functions */
 import * as hre from "hardhat";
-import { ethers } from "ethers";
 import { expect } from "chai";
 import { MeowToken } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { percents } from "./helpers/percents";
 
+const mintableTokensEachYear = [
+  // should be values with result amounts of tokens
+];
 
 describe("MeowToken Test", () => {
   let meowToken : MeowToken;
@@ -59,17 +62,15 @@ describe("MeowToken Test", () => {
       console.log("Tokens: ", tokens.toString());
     });
 
-    it.only("#getMintableTokensAmount()", async () => {
-      // const newDeployTime = 1722542400n;
-      // await meowToken.setDeployTime(newDeployTime);
-      const deployTime = await meowToken.deployTime();
-      // const lastMintTime = await meowToken.lastMintTime();
+    it("#tokens()", async () => {
+      const newDeployTime = 1722542400n;
+      await meowToken.setDeployTime(newDeployTime);
 
       for (let i = 0; i < 16; i++) {
-        const curTime = deployTime + 31536000n * BigInt(i);
+        const curTime = newDeployTime + 31536000n * BigInt(i);
         // const curTime = 1770498000n;
 
-        const tokens = await meowToken.getMintableTokensAmount(curTime);
+        const tokens = await meowToken.tokens(curTime);
         console.log("Tokens: ", tokens.toString());
       }
     });
@@ -138,7 +139,7 @@ describe("MeowToken Test", () => {
       const firstMintTime = deployTime;
 
       await expect(
-        await meowToken.calculateMintableTokens(firstMintTime)
+        await meowToken.getMintableTokensAmount(firstMintTime)
       ).to.be.equal(
         0n
       );
@@ -157,7 +158,7 @@ describe("MeowToken Test", () => {
         // + year each iteration
         currentTime += 31536000n;
 
-        const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
+        const tokensFromContract = await meowToken.getMintableTokensAmount(currentTime);
 
         expect(
           tokensFromContract
@@ -168,46 +169,37 @@ describe("MeowToken Test", () => {
     });
 
     it("Should return correct years amount of tokens, increased each year (another)", async () => {
-      const resultTokens = [
-        0,
-        90000000000000000000000000,
-        173385000000000000000000000,
-        249655025000000000000000000,
-        318635982380000000000000000,
-        380480009953622000000000000,
-        435423114349776155600000000,
-        483940415614798589659280000,
-        526529505542943309182501336,
-        563624172527636831595636118,
-        595834830481706150326506222,
-        623761940015136007957220080,
-        648118369115363048076578381,
-        672840144652093493797727056,
-        697932746821874896204692961,
-        723401738024203019647763355,
-      ];
-
-      const initialSupply = 1000000000n * 10n ** 18n;
-
       const deployTime = 1722542400n;
       let currentTime = deployTime;
 
-      for (let year = 1; year < 15; year++) {
+      for (let year = 0; year < 13; year++) {
         currentTime += 31536000n;
 
-        const tokensFromContract = await meowToken.tokens(currentTime);
-
         await expect(
-          tokensFromContract
+          await meowToken.getMintableTokensAmount(currentTime)
         ).to.be.equal(
-          resultTokens[year]
+          mintableTokensEachYear[year]
         );
       }
-
     });
 
-    it("Should return correct amount of tokens, increased each 10000 sec", async () => {
+    it("Should return correct amount of tokens, increased each 10.512.000 sec (1/3 part of year)", async () => {
+      const deployTime = 1722542400n;
+      let currentTime = deployTime;
 
+      for (let timeInterval = 0; timeInterval < 14; timeInterval++) {
+        currentTime += 10512000n;
+
+        await expect(
+          await meowToken.getMintableTokensAmount(currentTime)
+        ).to.be.equal(
+          mintableTokensEachYear[timeInterval] / 3n
+        );
+      }
+    });
+
+    it("", async () => {
+      // TODO myself: deploy, wait some time, mint, then wait and mint again
     });
   });
 

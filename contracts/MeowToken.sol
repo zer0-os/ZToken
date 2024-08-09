@@ -9,7 +9,7 @@ contract MeowToken is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /*** Inflation Constants ***/
-    uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
+    // uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
     // TODO: remove this constant when done testing!
     uint256 public constant INITIAL_SUPPLY_BASE = 1000000000;
 
@@ -56,7 +56,7 @@ contract MeowToken is ERC20, AccessControl {
             uint256 currentYearMintableTokens
         ) = getMintableTokensAmount(block.timestamp);
         lastMintLeftoverTokens = tokensForYear - currentYearMintableTokens;
-        lastMintYear = yearsSinceDeploy(block.timestamp) + 1;
+        lastMintYear = yearsSinceDeploy(block.timestamp);
         _mint(to, totalToMint);
     }
 
@@ -115,17 +115,17 @@ contract MeowToken is ERC20, AccessControl {
         uint256 mintableTokens;
         uint256 yearsTokens;
         // TODO: possibly change for an updated state variable after every year pass!
-        uint256 currentYearStart = deployTime + yearsFromDeploy * 365 days;
+        uint256 currentYear = deployTime + yearsFromDeploy * 365 days;
         // TODO: refactor this later!
         uint256 periodTokens;
-        for (uint256 i = lastMintYear; i <= yearsFromDeploy + 1; i++) {
+        for (uint256 i = lastMintYear + 1; i <= yearsFromDeploy + 2; i++) {
             inflationRate = currentInflationRate(i);
             yearsTokens = totalSupply * inflationRate / BASIS_POINTS;
             totalSupply += yearsTokens;
-            if (i != yearsFromDeploy + 1) {
+            if (i != yearsFromDeploy + 2) {
                 mintableTokens += yearsTokens;
             } else {
-                uint256 incompleteYearSeconds = currentTime - currentYearStart;
+                uint256 incompleteYearSeconds = currentTime - currentYear;
                 periodTokens = yearsTokens * incompleteYearSeconds / 365 days;
                 mintableTokens += periodTokens;
             }
