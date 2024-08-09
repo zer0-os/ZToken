@@ -130,6 +130,7 @@ describe("MeowToken Test", () => {
     let totalSupply : bigint;
 
     let timeOfMint1 : bigint;
+    let firstMintAmtRef : bigint;
 
     it("should mint proper amount based on seconds if called in the middle of the first year", async () => {
       const deployTime = await meowToken.deployTime();
@@ -138,8 +139,7 @@ describe("MeowToken Test", () => {
       timeOfMint1 = deployTime + YEAR_IN_SECONDS / 2n - 1n;
       const inflationRate = await meowToken.YEARLY_INFLATION_RATES(1);
       const tokensPerYearRef = totalSupply * inflationRate / 10000n;
-      const tokensPerSecond = tokensPerYearRef / YEAR_IN_SECONDS;
-      const tokensAmtRef = tokensPerYearRef / 2n;
+      firstMintAmtRef = tokensPerYearRef / 2n;
 
       await time.increaseTo(timeOfMint1);
       timeOfMint1 += 1n;
@@ -150,16 +150,14 @@ describe("MeowToken Test", () => {
 
       const balDiff = beneficiaryBalAfter - beneficiaryBalBefore;
       console.log("Bal Diff: ", balDiff.toString());
-      expect(balDiff).to.eq(tokensAmtRef);
+      expect(balDiff).to.eq(firstMintAmtRef);
 
       // check that all state values set properly!
       lastMintTime = await meowToken.lastMintTime();
-      mintedLastYear = await meowToken.mintedLastYear();
       totalSupply = await meowToken.totalSupply();
 
       expect(lastMintTime).to.eq(timeOfMint1);
-      // expect(mintedLastYear).to.eq(tokensAmtRef);
-      expect(totalSupply).to.eq(initialTotalSupply + tokensAmtRef);
+      expect(totalSupply).to.eq(initialTotalSupply + firstMintAmtRef);
     });
 
     it("should mint proper amount at the end of the year based on `lastMintLeftoverTokens`", async () => {
@@ -168,13 +166,10 @@ describe("MeowToken Test", () => {
       const tokensPerYear = initialTotalSupply * 900n / 10000n;
       const tokensPerYear2 = initialTotalSupply * 765n / 10000n;
       const tokensPerYear3 = initialTotalSupply * 650n / 10000n;
-      const perSecYearThree = tokensPerYear3 / YEAR_IN_SECONDS;
 
       const balanceBefore = await meowToken.balanceOf(beneficiary.address);
 
-      // // await time.increaseTo(endOfYear - 1n);
       const periodSeconds = 260825n;
-      // // const periodAmt = perSecYearSeven * (periodSeconds + 1n);
       const secondMintTime = deployTime + (YEAR_IN_SECONDS) * 2n + periodSeconds;
       await time.increaseTo(secondMintTime);
 
@@ -183,27 +178,16 @@ describe("MeowToken Test", () => {
       const balanceAfter = await meowToken.balanceOf(beneficiary.address);
       const balanceDiff = balanceAfter - balanceBefore;
 
-      const curTime = await time.latest();
-      // const firstPeriod = endOfYear - (deployTime + YEAR_IN_SECONDS / 2n);
       const periodAmt = tokensPerYear3 * (periodSeconds + 1n) / YEAR_IN_SECONDS;
       const secondMintAmtRef = tokensPerYear * (YEAR_IN_SECONDS / 2n) / 31536000n + tokensPerYear2 + periodAmt;
-      // const totalMintedRef = tokensPerYear + tokensPerYear2 + (tokensPerYear3 * (periodSeconds + 1n) / YEAR_IN_SECONDS);
-
-      const filter = meowToken.filters.Test();
-      const logs = await meowToken.queryFilter(filter);
 
       expect(balanceDiff).to.eq(secondMintAmtRef);
 
-      // error margin initial = 6363110742652667297n
-      // check that all state values set properly!
-      // lastMintTime = await meowToken.lastMintTime();
-      // mintedLastYear = await meowToken.mintedLastYear();
-      // totalSupply = await meowToken.totalSupply();
+      lastMintTime = await meowToken.lastMintTime();
+      totalSupply = await meowToken.totalSupply();
 
-      // expect(lastMintTime).to.eq(secondMintTime + 1n);
-      // // TODO: fix this when mint() is fixed on the contract!
-      // expect(mintedLastYear).to.eq(secondMintAmtRef);
-      // expect(totalSupply).to.eq(initialTotalSupply + tokensPerYear);
+      expect(lastMintTime).to.eq(secondMintTime + 1n);
+      expect(totalSupply).to.eq(initialTotalSupply + firstMintAmtRef + secondMintAmtRef);
     });
   });
 });
