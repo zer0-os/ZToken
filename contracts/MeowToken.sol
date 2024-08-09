@@ -286,27 +286,12 @@ contract MeowToken is ERC20, AccessControl {
         uint256 mintedCurrentYear;
         uint256 lastTime = lastMintTime == 0 ? deployTime : lastMintTime;
 
-        emit Test(
-            "currentYear, yearOfLastMint, yearStartPoint, lastTime",
-            currentYear,
-            yearOfLastMint,
-            yearStartPoint,
-            lastTime
-        );
-
         if (time < yearStartPoint) {
             yearTokens = tokensPerYear(
                 yearOfLastMint,
                 initialSupply()
             );
             mintableTokens = _tokensPerPeriod(yearTokens, time - lastTime);
-            emit Test(
-                "IF 1",
-                yearTokens,
-                mintableTokens,
-                0,
-                0
-            );
         } else {
             uint256 yearsSinceLastMint = (time - yearStartPoint) / 365 days;
             uint256 newYearPeriodLength = (time - yearStartPoint) % 365 days;
@@ -316,13 +301,7 @@ contract MeowToken is ERC20, AccessControl {
                 initialSupply()
             );
             mintableTokens = _tokensPerPeriod(yearTokens, yearStartPoint - lastTime);
-            emit Test(
-                "yearTokens, mintableTokens, yearsSinceLastMint, newYearPeriodLength",
-                yearTokens,
-                mintableTokens,
-                yearsSinceLastMint,
-                newYearPeriodLength
-            );
+
             if (yearsSinceLastMint > 0) {
                 mintableTokens += getTotalYearlyTokens(
                     yearOfLastMint + 1,
@@ -334,26 +313,12 @@ contract MeowToken is ERC20, AccessControl {
                     initialSupply()
                 );
                 mintableTokens += _tokensPerPeriod(yearTokens, newYearPeriodLength);
-                emit Test(
-                    "IF 3",
-                    yearTokens,
-                    mintableTokens,
-                    0,
-                    0
-                );
             } else {
                 yearTokens = tokensPerYear(
                     currentYear,
                     initialSupply()
                 );
                 mintableTokens += _tokensPerPeriod(yearTokens, newYearPeriodLength);
-                emit Test(
-                    "IF 4",
-                    yearTokens,
-                    mintableTokens,
-                    0,
-                    0
-                );
             }
         }
 

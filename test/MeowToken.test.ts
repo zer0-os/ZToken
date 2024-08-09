@@ -139,7 +139,7 @@ describe("MeowToken Test", () => {
       const inflationRate = await meowToken.YEARLY_INFLATION_RATES(1);
       const tokensPerYearRef = totalSupply * inflationRate / 10000n;
       const tokensPerSecond = tokensPerYearRef / YEAR_IN_SECONDS;
-      const tokensAmtRef = tokensPerYearRef / 2n + tokensPerSecond;
+      const tokensAmtRef = tokensPerYearRef / 2n;
 
       await time.increaseTo(timeOfMint1);
       timeOfMint1 += 1n;
@@ -164,22 +164,18 @@ describe("MeowToken Test", () => {
 
     it("should mint proper amount at the end of the year based on `lastMintLeftoverTokens`", async () => {
       const deployTime = await meowToken.deployTime();
-      // const lastMintLeftover = await meowToken.lastMintLeftoverTokens();
-      // const endOfYear = deployTime + YEAR_IN_SECONDS - 1n;
-      //
-      // const tokensPerYear = initialTotalSupply * 900n / 10000n;
-      // const tokensPerYear2 = initialTotalSupply * 765n / 10000n;
-      // const tokensPerYear3 = initialTotalSupply * 650n / 10000n;
-      //
-      // const perSecYearThree = tokensPerYear3 / YEAR_IN_SECONDS;
+
+      const tokensPerYear = initialTotalSupply * 900n / 10000n;
+      const tokensPerYear2 = initialTotalSupply * 765n / 10000n;
+      const tokensPerYear3 = initialTotalSupply * 650n / 10000n;
+      const perSecYearThree = tokensPerYear3 / YEAR_IN_SECONDS;
 
       const balanceBefore = await meowToken.balanceOf(beneficiary.address);
 
       // // await time.increaseTo(endOfYear - 1n);
-      // const periodSeconds = 260825n;
+      const periodSeconds = 260825n;
       // // const periodAmt = perSecYearSeven * (periodSeconds + 1n);
-      // const periodAmt = perSecYearThree * (periodSeconds + 1n);
-      const secondMintTime = deployTime + YEAR_IN_SECONDS - 1n;
+      const secondMintTime = deployTime + (YEAR_IN_SECONDS) * 2n + periodSeconds;
       await time.increaseTo(secondMintTime);
 
       await meowToken.connect(admin).mint(beneficiary.address);
@@ -189,13 +185,14 @@ describe("MeowToken Test", () => {
 
       const curTime = await time.latest();
       // const firstPeriod = endOfYear - (deployTime + YEAR_IN_SECONDS / 2n);
-      // const secondMintAmtRef = tokensPerYear * firstPeriod / 31536000n + tokensPerYear2 + periodAmt;
+      const periodAmt = tokensPerYear3 * (periodSeconds + 1n) / YEAR_IN_SECONDS;
+      const secondMintAmtRef = tokensPerYear * (YEAR_IN_SECONDS / 2n) / 31536000n + tokensPerYear2 + periodAmt;
       // const totalMintedRef = tokensPerYear + tokensPerYear2 + (tokensPerYear3 * (periodSeconds + 1n) / YEAR_IN_SECONDS);
 
       const filter = meowToken.filters.Test();
       const logs = await meowToken.queryFilter(filter);
 
-      expect(balanceDiff).to.eq(11111n);
+      expect(balanceDiff).to.eq(secondMintAmtRef);
 
       // error margin initial = 6363110742652667297n
       // check that all state values set properly!
