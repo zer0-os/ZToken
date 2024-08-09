@@ -102,4 +102,15 @@ contract MeowToken is ERC20, AccessControl {
     function _tokensPerPeriod(uint256 tokensPerYear, uint256 periodSeconds) internal pure returns (uint256) {
         return tokensPerYear * periodSeconds / 365 days;
     }
+
+    /**
+     * @dev Burn from totalSupply when sent to this contract.
+     */
+    function _update(address from, address to, uint256 value) internal override {
+        if (to == address(this)) {
+            return super._update(from, address(0), value);
+        }
+
+        return super._update(from, to, value);
+    }
 }

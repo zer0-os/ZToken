@@ -13,9 +13,10 @@ describe("MeowToken Test", () => {
   let meowToken : MeowToken;
   let admin : SignerWithAddress;
   let beneficiary : SignerWithAddress;
+  let randomAcc : SignerWithAddress;
 
   before(async () => {
-    [admin, beneficiary] = await hre.ethers.getSigners();
+    [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
     const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
     meowToken = await MeowTokenFactory.deploy(admin.address, admin.address);
@@ -190,23 +191,42 @@ describe("MeowToken Test", () => {
       expect(totalSupply).to.eq(initialTotalSupply + firstMintAmtRef + secondMintAmtRef);
     });
   });
+
+  describe.only("Burn on Transfer to Token Address", () => {
+    it("should burn token upon transfer to token address", async () => {
+      const adminBalanceBefore = await meowToken.balanceOf(admin.address);
+      const tokenSupplyBefore = await meowToken.totalSupply();
+      const transferAmt = 13546846845n;
+
+      await meowToken.connect(admin).transfer(meowToken.target, transferAmt);
+
+      const adminBalanceAfter = await meowToken.balanceOf(admin.address);
+      const tokenSupplyAfter = await meowToken.totalSupply();
+
+      expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
+      expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(transferAmt);
+
+      // make sure we can't transfer to 0x0 address
+      await expect(
+        meowToken.connect(admin).transfer(hre.ethers.ZeroAddress, transferAmt)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "ERC20InvalidReceiver"
+      ).withArgs(hre.ethers.ZeroAddress);
+    });
+
+    it("should NOT burn tokens if transferred to any regular address", async () => {
+      const adminBalanceBefore = await meowToken.balanceOf(admin.address);
+      const tokenSupplyBefore = await meowToken.totalSupply();
+      const transferAmt = 13546846845n;
+
+      await meowToken.connect(admin).transfer(randomAcc.address, transferAmt);
+
+      const adminBalanceAfter = await meowToken.balanceOf(admin.address);
+      const tokenSupplyAfter = await meowToken.totalSupply();
+
+      expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
+      expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(0n);
+    });
+  });
 });
-
-// 909,090,909,090,000,000,000,000,000 - 1 year
-// 772,727,272,726,500,000,000,000,000 - 2 year
-// 0.5206621004566210045662100456621 - portion of year passed
-
-// 909,090,909.09 - year 1
-// 772,727,272.7265 - year 2
-// 0.5206621004566210045662100456621 - portion of year passed
-// 402,329,804.89789571917808219178082 - from start of year 2
-// 1,311,420,713.9878957191780821917808 - total
-
-// FOR 1000000000 INITIAL SUPPLY
-// 90,000,000 - year 1
-// 76,500,000 - year 2 (from INITIAL) or
-// 0.5206621004566210045662100456621 - portion of year passed
-// 39,830,650.684931506849315068493151 - from start of year 2
-// 129,830,650.68493150684931506849315 - total
-// 0.2 - part of year 1 passed
-// 18,000,000 - total tokens from start of year 1
