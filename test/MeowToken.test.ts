@@ -125,6 +125,18 @@ describe("MeowToken Test", () => {
     });
   });
 
+  describe("#calculateMintableTokens()", () => {
+    it("should revert when calculating tokens for time that is equal or less than last mint time", async () => {
+      const lastMintTime = await meowToken.lastMintTime();
+      await expect(
+        meowToken.calculateMintableTokens(lastMintTime)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "InvalidTime"
+      ).withArgs(lastMintTime, lastMintTime);
+    });
+  });
+
   describe.only("Minting Scenarios", () => {
     let lastMintTime : bigint;
     let mintedLastYear : bigint;

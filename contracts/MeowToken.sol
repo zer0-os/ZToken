@@ -5,8 +5,15 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
 
+// TODO:
+//  1. possibly split into multiple contracts and inherit
+//  2. consider adding a state var for beneficiary instead of passing it as argument
+//  3. pass name and symbol as constructor arguments
+//  4. consider passing inflation rates as arguments to the constructor
 contract MeowToken is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    error InvalidTime(uint256 lastMintTime, uint256 currentTime);
 
     /*** Inflation Constants ***/
     uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
@@ -66,11 +73,16 @@ contract MeowToken is ERC20, AccessControl {
     }
 
     function calculateMintableTokens(uint256 time) public view returns (uint256) {
+        uint256 lastTime = lastMintTime;
+
+        if (time <= lastTime) {
+            revert InvalidTime(lastTime, time);
+        }
+
         uint256 currentYear = yearSinceDeploy(time);
-        uint256 yearOfLastMint = yearSinceDeploy(lastMintTime);
+        uint256 yearOfLastMint = yearSinceDeploy(lastTime);
 
         uint256 yearStartPoint = deployTime + yearOfLastMint * 365 days;
-        uint256 lastTime = lastMintTime;
 
         uint256 lastYearTokens;
         // less than year passed since last mint/deploy
