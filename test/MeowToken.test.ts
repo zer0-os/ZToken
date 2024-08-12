@@ -5,11 +5,14 @@ import { MeowToken } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { percents } from "./helpers/percents";
+import { AUTH_ERROR } from "./helpers/errors";
+import { TRANSFER } from "./helpers/events";
 
 
 const YEAR_IN_SECONDS = 31536000n;
 let initialTotalSupply : bigint;
 
+// TODO how are these values calculated?
 const mintableTokensEachYear = [
   909090909n,
   772727272n,
@@ -25,6 +28,7 @@ const mintableTokensEachYear = [
   151515151n,
 ];
 
+// TODO how are these values calculated?
 const accumulatedMintableTokens = [
   909090909n,
   1681818181n,
@@ -40,21 +44,64 @@ const accumulatedMintableTokens = [
   5184848484n,
 ];
 
+// Inflation rate for each year
+const inflationRate = [
+  900n,
+  765n,
+  650n,
+  552n,
+  469n,
+  398n,
+  338n,
+  287n,
+  243n,
+  206n,
+  175n,
+  150n,
+];
+
 describe("MeowToken Test", () => {
   let meowToken : MeowToken;
   let admin : SignerWithAddress;
   let beneficiary : SignerWithAddress;
+  let dummy : SignerWithAddress;
 
   let deployTime : bigint;
 
   before(async () => {
-    [admin, beneficiary] = await hre.ethers.getSigners();
+    [admin, beneficiary, dummy] = await hre.ethers.getSigners();
 
     const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
     meowToken = await MeowTokenFactory.deploy(admin.address, admin.address);
     initialTotalSupply = await meowToken.totalSupply();
 
     deployTime = await meowToken.deployTime();
+  });
+
+  describe.only("Deployment", () => {
+    it("Should set the given address as the admin and minter of the contract", async () => {
+      expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), admin.address)).to.be.true;
+      expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), admin.address)).to.be.true;
+    });
+
+    it("Succeeds when an authorized address calls to mint", async () => {
+      const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
+
+      expect(await meowToken.connect(admin).mint(beneficiary.address)).to.emit(meowToken, TRANSFER);
+
+      const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
+
+      // Because the `time` helper from HH increments the `block.timestamp` by 1s BEFORE executing the transaction
+      // we always calculate the expected amount the same way
+      const mintableTokens = await meowToken.calculateMintableTokens(await time.latest() + 1);
+
+      const balDiff = beneficiaryBalAfter - beneficiaryBalBefore;
+      expect(balDiff).to.eq(mintableTokens);
+    });
+
+    it("Fails when an address that does not have the MINTER_ROLE tries to mint", async () => {
+      await expect(meowToken.connect(beneficiary).mint(beneficiary.address)).to.be.revertedWithCustomError(meowToken, AUTH_ERROR);
+    });
   });
 
   describe("Inflation Calculations", () => {
@@ -74,21 +121,6 @@ describe("MeowToken Test", () => {
     });
 
     it("Reference formula", async () => {
-      const inflationRate = [
-        900n,
-        765n,
-        650n,
-        552n,
-        469n,
-        398n,
-        338n,
-        287n,
-        243n,
-        206n,
-        175n,
-        150n,
-      ];
-
       for (let k = 0; k < 20; k++) {
         const getTotalSupplyForYear = (year : bigint) => {
           const yearIdx = Number(year);
@@ -200,19 +232,6 @@ describe("MeowToken Test", () => {
       expect(totalSupply).to.eq(initialTotalSupply + firstMintAmtRef + secondMintAmtRef);
     });
   });
-
-
-  //
-  // MY
-  // MY
-  // MY
-  // MY
-  // MY
-  // MY
-  // MY
-  // MY
-  //
-
 
   describe("Minting scenarios, where each test has clear contract", () => {
     let meowTokenClear : MeowToken;
