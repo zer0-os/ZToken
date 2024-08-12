@@ -7,6 +7,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { percents } from "./helpers/percents";
 import { AUTH_ERROR } from "./helpers/errors";
 import { TRANSFER } from "./helpers/events";
+import { years } from "@nomicfoundation/hardhat-network-helpers/dist/src/helpers/time/duration";
 
 
 const YEAR_IN_SECONDS = 31536000n;
@@ -45,7 +46,7 @@ const accumulatedMintableTokens = [
 ];
 
 // Inflation rate for each year
-const inflationRate = [
+const inflationRates = [
   900n,
   765n,
   650n,
@@ -113,12 +114,28 @@ describe("MeowToken Test", () => {
       });
     });
 
-    describe("Other Calcs", () => {})
+    describe("Other Calcs", () => {
+      it("Breaks yearSinceDeploy? ormint?", async () => {
+        const deployTime = await meowToken.deployTime();
+
+        // TODO underflows this function, just a view though so do we care?
+        // const val = await meowToken.connect(admin).yearSinceDeploy(deployTime - 1000n);
+      });
+
+      it("Gets current inflation rate and returns 150 when we default", async () => {
+        // We ignore 0 as it is a dummy value to make the array 1-indexed for calcs
+        for(let i = 1; i < 11; i++) {
+          expect(await meowToken.currentInflationRate(i)).to.eq(inflationRates[i - 1]);
+        };
+        // Any value higher will always return 150
+        expect(await meowToken.currentInflationRate(12)).to.eq(inflationRates[inflationRates.length - 1]);
+        expect(await meowToken.currentInflationRate(20)).to.eq(inflationRates[inflationRates.length - 1]);
+      });
+    })
   });
 
   describe("Inflation Calculations", () => {
     it("#currentInflationRate()", async () => {
-
       let newTime;
       let inflationRate = 900n;
       for (let i = 0; i < 20; i++) {
@@ -139,7 +156,7 @@ describe("MeowToken Test", () => {
           let totalSupply = 1000000000n * 10n ** 18n;
           let tokensPerYear = 0n;
           for (let i = 0; i <= yearIdx; i++) {
-            const rate = inflationRate[i] || 150n;
+            const rate = inflationRates[i] || 150n;
             tokensPerYear = totalSupply / 10000n * rate;
             totalSupply = i !== yearIdx ? totalSupply + tokensPerYear : totalSupply;
           }
@@ -191,7 +208,7 @@ describe("MeowToken Test", () => {
     });
   });
 
-  describe.only("Minting Scenarios", () => {
+  describe("Minting Scenarios", () => {
     let lastMintTime : bigint;
     let totalSupply : bigint;
 
@@ -257,7 +274,7 @@ describe("MeowToken Test", () => {
     });
   });
 
-  describe.only("Burn on Transfer to Token Address", () => {
+  describe("Burn on Transfer to Token Address", () => {
     it("should burn token upon transfer to token address", async () => {
       const adminBalanceBefore = await meowToken.balanceOf(admin.address);
       const tokenSupplyBefore = await meowToken.totalSupply();
