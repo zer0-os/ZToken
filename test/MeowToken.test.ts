@@ -5,11 +5,14 @@ import { MeowToken } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { percents } from "./helpers/percents";
+import { parseEther } from "ethers";
 
 
 const YEAR_IN_SECONDS = 31536000n;
 let initialTotalSupply : bigint;
 
+
+// initial supply * inflation percent of each year
 const mintableTokensEachYear = [
   909090909n,
   772727272n,
@@ -25,6 +28,7 @@ const mintableTokensEachYear = [
   151515151n,
 ];
 
+// initial_supply * inflation_percent of each year - initial_supply
 const accumulatedMintableTokens = [
   909090909n,
   1681818181n,
@@ -215,17 +219,11 @@ describe("MeowToken Test", () => {
 
 
   describe("Minting scenarios, where each test has clear contract", () => {
-    let meowTokenClear : MeowToken;
-    let admin : SignerWithAddress;
-    let beneficiary : SignerWithAddress;
 
-    let deployTime : bigint;
+    const getTokensAmount = async (year : number, minted : bigint) => {
 
-    const getTokensAmount = async (year : number) => {
-      const localTotalSupply = await meowTokenClear.totalSupply();
-
-      const inflationRate = await meowTokenClear.YEARLY_INFLATION_RATES(year);
-      const tokensPerYearRef = localTotalSupply * inflationRate / 10000n;
+      const inflationRate = await meowToken.YEARLY_INFLATION_RATES(year);
+      const tokensPerYearRef = (initialTotalSupply * inflationRate - minted) / 10000n ;
 
       return tokensPerYearRef;
     };
@@ -234,21 +232,21 @@ describe("MeowToken Test", () => {
       [admin, beneficiary] = await hre.ethers.getSigners();
 
       const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
-      meowTokenClear = await MeowTokenFactory.deploy(admin.address, admin.address);
-      initialTotalSupply = await meowTokenClear.totalSupply();
+      meowToken = await MeowTokenFactory.deploy(admin.address, admin.address);
+      initialTotalSupply = await meowToken.totalSupply();
 
-      deployTime = await meowTokenClear.deployTime();
+      deployTime = await meowToken.deployTime();
     });
 
     it("Should return 0 mintable tokens with 0 passed time", async () => {
 
-      deployTime = await meowTokenClear.deployTime();
+      deployTime = await meowToken.deployTime();
 
       // spend 0 seconds
       const firstMintTime = deployTime;
 
       await expect(
-        await meowTokenClear.calculateMintableTokens(firstMintTime)
+        await meowToken.calculateMintableTokens(firstMintTime)
       ).to.be.equal(
         0n
       );
@@ -262,10 +260,10 @@ describe("MeowToken Test", () => {
         // + year each iteration
         currentTime += 31536000n;
 
-        const tokensFromContract = await meowTokenClear.calculateMintableTokens(currentTime);
+        const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
 
         expect(
-          tokensFromContract / 10n**18n
+          tokensFromContract / parseEther("1")
         ).to.be.equal(
           accumulatedMintableTokens[year]
         );
@@ -276,13 +274,14 @@ describe("MeowToken Test", () => {
       let currentTime = deployTime;
 
       let timeOfMint = 0n;
+      let minted = 0n;
 
       for (let year = 1; year < 13; year++) {
         currentTime += 31536000n;
         timeOfMint = currentTime;
 
-        const tokensFromContract = await meowTokenClear.calculateMintableTokens(currentTime);
-        const expectedAmount = await getTokensAmount(year);
+        const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
+        const expectedAmount = await getTokensAmount(year, minted);
 
         expect(
           tokensFromContract
@@ -293,9 +292,11 @@ describe("MeowToken Test", () => {
         await time.increaseTo(timeOfMint);
         timeOfMint += 1n;
 
-        const beneficiaryBalBefore = await meowTokenClear.balanceOf(beneficiary.address);
+        const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
         await meowToken.connect(admin).mint(beneficiary.address);
-        const beneficiaryBalAfter = await meowTokenClear.balanceOf(beneficiary.address);
+        const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
+
+        minted += beneficiaryBalAfter - beneficiaryBalBefore;
 
         console.log(beneficiaryBalBefore);
         console.log(beneficiaryBalAfter);
@@ -309,7 +310,7 @@ describe("MeowToken Test", () => {
         currentTime += 10512000n;
 
         await expect(
-          await meowTokenClear.calculateMintableTokens(currentTime) / 10n**18n
+          await meowToken.calculateMintableTokens(currentTime) / parseEther("1")
         ).to.be.equal(
           mintableTokensEachYear[timeInterval] / 3n
         );
@@ -325,7 +326,7 @@ describe("MeowToken Test", () => {
 
       currentTime += 31536000n;
 
-      await meowTokenClear.connect(admin).mint(beneficiary.address);
+      await meowToken.connect(admin).mint(beneficiary.address);
 
       // TODO myself: deploy, wait some years and then mint (like after 2y and some seconds)
     });
