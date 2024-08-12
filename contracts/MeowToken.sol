@@ -13,37 +13,76 @@ import { IMeowToken } from "./IMeowToken.sol";
 contract MeowToken is ERC20, AccessControl, IMeowToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    /*** Inflation Constants ***/
+    /*** Constants ***/
     uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
-    uint256 public constant MIN_INFLATION_RATE = 150; // 1.5%
     uint256 public constant BASIS_POINTS = 10000;
 
-    uint256 public immutable deployTime;
-    uint256 public lastMintTime;
+    /*** Inflation Immutable Vars ***/
+    /**
+     * @notice Array of yearly inflation rates in basis points. Only set once during deployment.
+     * @dev Since Solidity still doesn't support immutable state arrays, this is a state var with no setters,
+     * and is set only once in the constructor, so it can be considered immutable.
+     * We use capitalized snake case to signify that.
+     */
+    uint16[] public override YEARLY_INFLATION_RATES;
+    /**
+     * @notice The final inflation rate after all the yearly rates have been applied.
+     * @dev This is the last inflation rate after all the yearly rates have been applied.
+     * It is returned when `yearIndex` goes past the length of the `YEARLY_INFLATION_RATES` array
+     * and the inflation plateaus at this rate forever once reached.
+     */
+    uint16 public immutable override FINAL_INFLATION_RATE;
 
-    // TODO: is this a good name?
-    address public mintBeneficiary;
+    /*** Time Vars ***/
+    /**
+     * @notice Timestamp of contract deployment. Immutable.
+     */
+    uint256 public immutable override deployTime;
+    /**
+     * @notice Timestamp of the last mint operation. Updated on every mint.
+     */
+    uint256 public override lastMintTime;
 
-    // TODO: possibly initialize this from constructor!
-    uint16[12] public YEARLY_INFLATION_RATES = [0, 900, 765, 650, 552, 469, 398, 338, 287, 243, 206, 175];
+    /*
+     * @notice Address that will receive all the minted tokens. Can be updated by the ADMIN_ROLE.
+     */
+    address public override mintBeneficiary;
 
     // TODO: add name and symbol as constructor arguments
+    /**
+     * @dev Please note the param comments!
+     * @param _defaultAdmin is the address that will be granted the DEFAULT_ADMIN_ROLE
+     * @param _minter is the address that will be granted the MINTER_ROLE
+     * @param _mintBeneficiary is the address that will receive all the minted tokens, it's state var can be reset later
+     * @param _inflationRates array can NOT be empty, and the first element must be 0! Need to be passed as
+     *  basis points (where 100% is 10,000), so 1% is 100, 2% is 200, etc.
+     * @param _finalInflationRate is the last inflation rate after all the yearly rates have been applied.
+     *  It is returned when `yearIndex` goes past the length of the `YEARLY_INFLATION_RATES` array
+     *  and the inflation plateaus at this rate forever once reached. Also passed as basis points.
+     */
     constructor(
         address _defaultAdmin,
         address _minter,
-        address _mintBeneficiary
+        address _mintBeneficiary,
+        uint16[] memory _inflationRates,
+        uint16 _finalInflationRate
     ) ERC20("MEOW", "MEOW") {
         if (
-            _mintBeneficiary == address(0)
-            || _defaultAdmin == address(0)
+            _defaultAdmin == address(0)
             || _minter == address(0)
+            || _mintBeneficiary == address(0)
         ) revert ZeroAddressPassed();
+
+        if (_inflationRates.length == 0 || _inflationRates[0] != 0)
+            revert InvalidInflationRatesArray(_inflationRates);
 
         _mint(_mintBeneficiary, baseSupply());
         _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
         _grantRole(MINTER_ROLE, _minter);
 
         mintBeneficiary = _mintBeneficiary;
+        YEARLY_INFLATION_RATES = _inflationRates;
+        FINAL_INFLATION_RATE = _finalInflationRate;
 
         deployTime = block.timestamp;
         lastMintTime = block.timestamp;
@@ -56,12 +95,16 @@ contract MeowToken is ERC20, AccessControl, IMeowToken {
     }
 
     function yearSinceDeploy(uint256 time) public view override returns (uint256) {
+        if (time < deployTime) {
+            revert InvalidTimeSupplied(deployTime, time);
+        }
+
         return (time - deployTime) / 365 days + 1;
     }
 
     function currentInflationRate(uint256 yearIndex) public view override returns (uint256) {
         if (yearIndex >= YEARLY_INFLATION_RATES.length) {
-            return MIN_INFLATION_RATE;
+            return FINAL_INFLATION_RATE;
         }
         return YEARLY_INFLATION_RATES[yearIndex];
     }
@@ -78,8 +121,8 @@ contract MeowToken is ERC20, AccessControl, IMeowToken {
     function calculateMintableTokens(uint256 time) public view override returns (uint256) {
         uint256 lastTime = lastMintTime;
 
-        if (time <= lastTime) {
-            revert InvalidTime(lastTime, time);
+        if (time < lastTime) {
+            revert InvalidTimeSupplied(lastTime, time);
         }
 
         uint256 currentYear = yearSinceDeploy(time);
@@ -132,8 +175,8 @@ contract MeowToken is ERC20, AccessControl, IMeowToken {
         return mintableTokens;
     }
 
-    function _tokensPerPeriod(uint256 tokensPerYear, uint256 periodSeconds) internal pure returns (uint256) {
-        return tokensPerYear * periodSeconds / 365 days;
+    function _tokensPerPeriod(uint256 yearlyTokens, uint256 periodSeconds) internal pure returns (uint256) {
+        return yearlyTokens * periodSeconds / 365 days;
     }
 
     /**

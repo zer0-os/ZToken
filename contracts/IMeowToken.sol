@@ -5,8 +5,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 
 interface IMeowToken is IERC20 {
-    error InvalidTime(uint256 lastMintTime, uint256 currentTime);
+    error InvalidTimeSupplied(uint256 lastMintTime, uint256 currentTime);
     error ZeroAddressPassed();
+    error InvalidInflationRatesArray(uint16[] ratesPassed);
 
     event MintBeneficiaryUpdated(address indexed newBeneficiary);
 
@@ -28,7 +29,7 @@ interface IMeowToken is IERC20 {
 
     function YEARLY_INFLATION_RATES(uint256 index) external view returns (uint16);
 
-    function MIN_INFLATION_RATE() external view returns (uint256);
+    function FINAL_INFLATION_RATE() external view returns (uint16);
 
     function currentInflationRate(uint256 yearIndex) external view returns (uint256);
 

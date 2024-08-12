@@ -7,6 +7,8 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 const YEAR_IN_SECONDS = 31536000n;
 let initialTotalSupply : bigint;
+const inflationRates = [0n, 900n, 765n, 650n, 552n, 469n, 398n, 338n, 287n, 243n, 206n, 175n];
+const finalInflationRate = 150n;
 
 
 describe("MeowToken Test", () => {
@@ -23,6 +25,8 @@ describe("MeowToken Test", () => {
       admin.address,
       admin.address,
       beneficiary.address,
+      inflationRates,
+      finalInflationRate,
     );
     initialTotalSupply = await meowToken.totalSupply();
   });
