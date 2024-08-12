@@ -64,12 +64,11 @@ describe("MeowToken Test", () => {
   let meowToken : MeowToken;
   let admin : SignerWithAddress;
   let beneficiary : SignerWithAddress;
-  let dummy : SignerWithAddress;
-
+  let randomAcc : SignerWithAddress;
   let deployTime : bigint;
 
   before(async () => {
-    [admin, beneficiary, dummy] = await hre.ethers.getSigners();
+    [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
     const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
     meowToken = await MeowTokenFactory.deploy(admin.address, admin.address);
@@ -79,29 +78,42 @@ describe("MeowToken Test", () => {
   });
 
   describe.only("Deployment", () => {
-    it("Should set the given address as the admin and minter of the contract", async () => {
-      expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), admin.address)).to.be.true;
-      expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), admin.address)).to.be.true;
+    describe("Access control", () => {
+      it("Should set the given address as the admin and minter of the contract", async () => {
+        expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), admin.address)).to.be.true;
+        expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), admin.address)).to.be.true;
+
+      });
+
+      it("Does not set other addresses with rikes on deployment", async () => {
+        expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), beneficiary.address)).to.be.false;
+        expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), beneficiary.address)).to.be.false;
+
+        expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), randomAcc.address)).to.be.false;
+        expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), randomAcc.address)).to.be.false;
+      });
+  
+      it("Succeeds when an authorized address calls to mint", async () => {
+        const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
+  
+        expect(await meowToken.connect(admin).mint(beneficiary.address)).to.emit(meowToken, TRANSFER);
+  
+        const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
+  
+        // Because the `time` helper from HH increments the `block.timestamp` by 1s BEFORE executing the transaction
+        // we always calculate the expected amount the same way
+        const mintableTokens = await meowToken.calculateMintableTokens(await time.latest() + 1);
+  
+        const balDiff = beneficiaryBalAfter - beneficiaryBalBefore;
+        expect(balDiff).to.eq(mintableTokens);
+      });
+  
+      it("Fails when an address that does not have the MINTER_ROLE tries to mint", async () => {
+        await expect(meowToken.connect(beneficiary).mint(beneficiary.address)).to.be.revertedWithCustomError(meowToken, AUTH_ERROR);
+      });
     });
 
-    it("Succeeds when an authorized address calls to mint", async () => {
-      const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
-
-      expect(await meowToken.connect(admin).mint(beneficiary.address)).to.emit(meowToken, TRANSFER);
-
-      const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
-
-      // Because the `time` helper from HH increments the `block.timestamp` by 1s BEFORE executing the transaction
-      // we always calculate the expected amount the same way
-      const mintableTokens = await meowToken.calculateMintableTokens(await time.latest() + 1);
-
-      const balDiff = beneficiaryBalAfter - beneficiaryBalBefore;
-      expect(balDiff).to.eq(mintableTokens);
-    });
-
-    it("Fails when an address that does not have the MINTER_ROLE tries to mint", async () => {
-      await expect(meowToken.connect(beneficiary).mint(beneficiary.address)).to.be.revertedWithCustomError(meowToken, AUTH_ERROR);
-    });
+    describe("Other Calcs", () => {})
   });
 
   describe("Inflation Calculations", () => {
@@ -167,7 +179,19 @@ describe("MeowToken Test", () => {
     // });
   });
 
-  describe("Minting Scenarios", () => {
+  describe("#calculateMintableTokens()", () => {
+    it("should revert when calculating tokens for time that is equal or less than last mint time", async () => {
+      const lastMintTime = await meowToken.lastMintTime();
+      await expect(
+        meowToken.calculateMintableTokens(lastMintTime)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "InvalidTime"
+      ).withArgs(lastMintTime, lastMintTime);
+    });
+  });
+
+  describe.only("Minting Scenarios", () => {
     let lastMintTime : bigint;
     let totalSupply : bigint;
 
@@ -233,132 +257,41 @@ describe("MeowToken Test", () => {
     });
   });
 
-  describe("Minting scenarios, where each test has clear contract", () => {
-    let meowTokenClear : MeowToken;
-    let admin : SignerWithAddress;
-    let beneficiary : SignerWithAddress;
+  describe.only("Burn on Transfer to Token Address", () => {
+    it("should burn token upon transfer to token address", async () => {
+      const adminBalanceBefore = await meowToken.balanceOf(admin.address);
+      const tokenSupplyBefore = await meowToken.totalSupply();
+      const transferAmt = 13546846845n;
 
-    let deployTime : bigint;
+      await meowToken.connect(admin).transfer(meowToken.target, transferAmt);
 
-    const getTokensAmount = async (year : number) => {
-      const localTotalSupply = await meowTokenClear.totalSupply();
+      const adminBalanceAfter = await meowToken.balanceOf(admin.address);
+      const tokenSupplyAfter = await meowToken.totalSupply();
 
-      const inflationRate = await meowTokenClear.YEARLY_INFLATION_RATES(year);
-      const tokensPerYearRef = localTotalSupply * inflationRate / 10000n;
+      expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
+      expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(transferAmt);
 
-      return tokensPerYearRef;
-    };
-
-    beforeEach(async () => {
-      [admin, beneficiary] = await hre.ethers.getSigners();
-
-      const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
-      meowTokenClear = await MeowTokenFactory.deploy(admin.address, admin.address);
-      initialTotalSupply = await meowTokenClear.totalSupply();
-
-      deployTime = await meowTokenClear.deployTime();
-    });
-
-    it("Should return 0 mintable tokens with 0 passed time", async () => {
-
-      deployTime = await meowTokenClear.deployTime();
-
-      // spend 0 seconds
-      const firstMintTime = deployTime;
-
+      // make sure we can't transfer to 0x0 address
       await expect(
-        await meowTokenClear.calculateMintableTokens(firstMintTime)
-      ).to.be.equal(
-        0n
-      );
+        meowToken.connect(admin).transfer(hre.ethers.ZeroAddress, transferAmt)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "ERC20InvalidReceiver"
+      ).withArgs(hre.ethers.ZeroAddress);
     });
 
-    it("Should return correct years amount of tokens, increased each year (non-mint)", async () => {
+    it("should NOT burn tokens if transferred to any regular address", async () => {
+      const adminBalanceBefore = await meowToken.balanceOf(admin.address);
+      const tokenSupplyBefore = await meowToken.totalSupply();
+      const transferAmt = 13546846845n;
 
-      let currentTime = deployTime;
+      await meowToken.connect(admin).transfer(randomAcc.address, transferAmt);
 
-      for (let year = 0; year < 10; year++) {
-        // + year each iteration
-        currentTime += 31536000n;
+      const adminBalanceAfter = await meowToken.balanceOf(admin.address);
+      const tokenSupplyAfter = await meowToken.totalSupply();
 
-        const tokensFromContract = await meowTokenClear.calculateMintableTokens(currentTime);
-
-        expect(
-          tokensFromContract / 10n**18n
-        ).to.be.equal(
-          accumulatedMintableTokens[year]
-        );
-      }
-    });
-
-    it("Should return correct years amount of tokens, increased each year (mint)", async () => {
-      let currentTime = deployTime;
-
-      let timeOfMint = 0n;
-
-      for (let year = 1; year < 13; year++) {
-        currentTime += 31536000n;
-        timeOfMint = currentTime;
-
-        const tokensFromContract = await meowTokenClear.calculateMintableTokens(currentTime);
-        const expectedAmount = await getTokensAmount(year);
-
-        expect(
-          tokensFromContract
-        ).to.be.equal(
-          expectedAmount
-        );
-
-        await time.increaseTo(timeOfMint);
-        timeOfMint += 1n;
-
-        const beneficiaryBalBefore = await meowTokenClear.balanceOf(beneficiary.address);
-        await meowToken.connect(admin).mint(beneficiary.address);
-        const beneficiaryBalAfter = await meowTokenClear.balanceOf(beneficiary.address);
-
-        console.log(beneficiaryBalBefore);
-        console.log(beneficiaryBalAfter);
-      }
-    });
-
-    it("Should return correct amount of tokens, increased each 10.512.000 sec (1/3 part of year)", async () => {
-      let currentTime = deployTime;
-
-      for (let timeInterval = 0; timeInterval < 14; timeInterval++) {
-        currentTime += 10512000n;
-
-        await expect(
-          await meowTokenClear.calculateMintableTokens(currentTime) / 10n**18n
-        ).to.be.equal(
-          mintableTokensEachYear[timeInterval] / 3n
-        );
-      }
-    });
-
-    it("", async () => {
-      // TODO myself: deploy, wait some time (31536000 and 31535999), mint, then wait and mint again
-    });
-
-    it("", async () => {
-      let currentTime = deployTime;
-
-      currentTime += 31536000n;
-
-      await meowTokenClear.connect(admin).mint(beneficiary.address);
-
-      // TODO myself: deploy, wait some years and then mint (like after 2y and some seconds)
-    });
-
-    it("", async () => {
-      // TODO myself: each second
-    });
-
-    it("", async () => {
-      // TODO myself: a lot of years. SHould be 1.5% inflation and a lot of tokens
-    });
-
-    it("", async () => {
-      // TODO myself: 1000000 years
+      expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
+      expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(0n);
     });
   });
 });
