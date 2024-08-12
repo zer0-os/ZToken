@@ -3,20 +3,15 @@ pragma solidity 0.8.26;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { IMeowToken } from "./IMeowToken.sol";
 
 
 // TODO:
 //  1. possibly split into multiple contracts and inherit
-//  2. consider adding a state var for beneficiary instead of passing it as argument
 //  3. pass name and symbol as constructor arguments
 //  4. consider passing inflation rates as arguments to the constructor
-contract MeowToken is ERC20, AccessControl {
+contract MeowToken is ERC20, AccessControl, IMeowToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
-    error InvalidTime(uint256 lastMintTime, uint256 currentTime);
-    error ZeroAddressPassed();
-
-    event MintBeneficiaryUpdated(address indexed newBeneficiary);
 
     /*** Inflation Constants ***/
     uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
@@ -54,45 +49,33 @@ contract MeowToken is ERC20, AccessControl {
         lastMintTime = block.timestamp;
     }
 
-    function mint() public onlyRole(MINTER_ROLE) {
+    function mint() public override onlyRole(MINTER_ROLE) {
         uint256 totalToMint = calculateMintableTokens(block.timestamp);
         lastMintTime = block.timestamp;
         _mint(mintBeneficiary, totalToMint);
     }
 
-    function yearSinceDeploy(uint256 time) public view returns (uint256) {
+    function yearSinceDeploy(uint256 time) public view override returns (uint256) {
         return (time - deployTime) / 365 days + 1;
     }
 
-    function currentInflationRate(uint256 yearIndex) public view returns (uint256) {
+    function currentInflationRate(uint256 yearIndex) public view override returns (uint256) {
         if (yearIndex >= YEARLY_INFLATION_RATES.length) {
             return MIN_INFLATION_RATE;
         }
         return YEARLY_INFLATION_RATES[yearIndex];
     }
 
-    function getTotalYearlyTokens(
-        uint256 lastMintYearIdx,
-        uint256 currentYearIdx
-    ) public view returns (uint256) {
-        uint256 mintableTokens;
-        for (uint256 i = lastMintYearIdx; i < currentYearIdx; i++) {
-            mintableTokens += tokensPerYear(i);
-        }
-
-        return mintableTokens;
-    }
-
-    function tokensPerYear(uint256 yearIdx) public view returns (uint256) {
+    function tokensPerYear(uint256 yearIdx) public view override returns (uint256) {
         uint256 inflationRate = currentInflationRate(yearIdx);
         return baseSupply() * inflationRate / BASIS_POINTS;
     }
 
-    function baseSupply() public view returns (uint256) {
+    function baseSupply() public view override returns (uint256) {
         return INITIAL_SUPPLY_BASE * 10 ** decimals();
     }
 
-    function calculateMintableTokens(uint256 time) public view returns (uint256) {
+    function calculateMintableTokens(uint256 time) public view override returns (uint256) {
         uint256 lastTime = lastMintTime;
 
         if (time <= lastTime) {
@@ -116,7 +99,7 @@ contract MeowToken is ERC20, AccessControl {
 
         uint256 mintableTokens;
         if (yearsSinceLastMint > 0) {
-            mintableTokens = getTotalYearlyTokens(
+            mintableTokens = _getTotalYearlyTokens(
                 yearOfLastMint + 1,
                 currentYear
             );
@@ -131,10 +114,22 @@ contract MeowToken is ERC20, AccessControl {
         return mintableTokens;
     }
 
-    function setMintBeneficiary(address _mintBeneficiary) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMintBeneficiary(address _mintBeneficiary) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_mintBeneficiary == address(0)) revert ZeroAddressPassed();
         mintBeneficiary = _mintBeneficiary;
         emit MintBeneficiaryUpdated(_mintBeneficiary);
+    }
+
+    function _getTotalYearlyTokens(
+        uint256 lastMintYearIdx,
+        uint256 currentYearIdx
+    ) internal view returns (uint256) {
+        uint256 mintableTokens;
+        for (uint256 i = lastMintYearIdx; i < currentYearIdx; i++) {
+            mintableTokens += tokensPerYear(i);
+        }
+
+        return mintableTokens;
     }
 
     function _tokensPerPeriod(uint256 tokensPerYear, uint256 periodSeconds) internal pure returns (uint256) {
