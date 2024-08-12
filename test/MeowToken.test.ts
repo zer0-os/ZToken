@@ -19,7 +19,11 @@ describe("MeowToken Test", () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
     const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
-    meowToken = await MeowTokenFactory.deploy(admin.address, admin.address);
+    meowToken = await MeowTokenFactory.deploy(
+      admin.address,
+      admin.address,
+      beneficiary.address,
+    );
     initialTotalSupply = await meowToken.totalSupply();
   });
 
@@ -41,33 +45,7 @@ describe("MeowToken Test", () => {
       console.log("Inflation Rate: ", inflationRate.toString());
     });
 
-    it("#mintableTokens()", async () => {
-      const newDeployTime = 1722542400n;
-      await meowToken.setDeployTime(newDeployTime);
-
-      // const curTime = newDeployTime + 31536000n / 5n;
-      const curTime = 1770498000n;
-      // const refAmount = 710031064917234384471793251n;
-
-      const tokens = await meowToken.mintableTokens(curTime);
-      console.log("Tokens: ", tokens.toString());
-    });
-
-    it("#getMintableTokensAmount()", async () => {
-      // const newDeployTime = 1722542400n;
-      // await meowToken.setDeployTime(newDeployTime);
-      const deployTime = await meowToken.deployTime();
-      // const lastMintTime = await meowToken.lastMintTime();
-
-      for (let i = 0; i < 16; i++) {
-        const curTime = deployTime + 31536000n * BigInt(i);
-        // const curTime = 1770498000n;
-
-        const tokens = await meowToken.getMintableTokensAmount(curTime);
-        console.log("Tokens: ", tokens.toString());
-      }
-    });
-
+    // TODO: adapt this to the latest solidity code or delete!
     it("reference formula", async () => {
       const inflationRate = [
         900n,
@@ -139,9 +117,7 @@ describe("MeowToken Test", () => {
 
   describe.only("Minting Scenarios", () => {
     let lastMintTime : bigint;
-    let mintedLastYear : bigint;
     let totalSupply : bigint;
-
     let timeOfMint1 : bigint;
     let firstMintAmtRef : bigint;
 
@@ -158,11 +134,10 @@ describe("MeowToken Test", () => {
       timeOfMint1 += 1n;
 
       const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
-      await meowToken.connect(admin).mint(beneficiary.address);
+      await meowToken.connect(admin).mint();
       const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
 
       const balDiff = beneficiaryBalAfter - beneficiaryBalBefore;
-      console.log("Bal Diff: ", balDiff.toString());
       expect(balDiff).to.eq(firstMintAmtRef);
 
       // check that all state values set properly!
@@ -173,7 +148,7 @@ describe("MeowToken Test", () => {
       expect(totalSupply).to.eq(initialTotalSupply + firstMintAmtRef);
     });
 
-    it("should mint proper amount at the end of the year based on `lastMintLeftoverTokens`", async () => {
+    it("should mint proper amount when minted again sometime in the 3rd year", async () => {
       const deployTime = await meowToken.deployTime();
 
       const tokensPerYear = initialTotalSupply * 900n / 10000n;
@@ -186,7 +161,7 @@ describe("MeowToken Test", () => {
       const secondMintTime = deployTime + (YEAR_IN_SECONDS) * 2n + periodSeconds;
       await time.increaseTo(secondMintTime);
 
-      await meowToken.connect(admin).mint(beneficiary.address);
+      await meowToken.connect(admin).mint();
 
       const balanceAfter = await meowToken.balanceOf(beneficiary.address);
       const balanceDiff = balanceAfter - balanceBefore;
@@ -206,13 +181,13 @@ describe("MeowToken Test", () => {
 
   describe.only("Burn on Transfer to Token Address", () => {
     it("should burn token upon transfer to token address", async () => {
-      const adminBalanceBefore = await meowToken.balanceOf(admin.address);
+      const adminBalanceBefore = await meowToken.balanceOf(beneficiary.address);
       const tokenSupplyBefore = await meowToken.totalSupply();
       const transferAmt = 13546846845n;
 
-      await meowToken.connect(admin).transfer(meowToken.target, transferAmt);
+      await meowToken.connect(beneficiary).transfer(meowToken.target, transferAmt);
 
-      const adminBalanceAfter = await meowToken.balanceOf(admin.address);
+      const adminBalanceAfter = await meowToken.balanceOf(beneficiary.address);
       const tokenSupplyAfter = await meowToken.totalSupply();
 
       expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
@@ -220,7 +195,7 @@ describe("MeowToken Test", () => {
 
       // make sure we can't transfer to 0x0 address
       await expect(
-        meowToken.connect(admin).transfer(hre.ethers.ZeroAddress, transferAmt)
+        meowToken.connect(beneficiary).transfer(hre.ethers.ZeroAddress, transferAmt)
       ).to.be.revertedWithCustomError(
         meowToken,
         "ERC20InvalidReceiver"
@@ -228,17 +203,45 @@ describe("MeowToken Test", () => {
     });
 
     it("should NOT burn tokens if transferred to any regular address", async () => {
-      const adminBalanceBefore = await meowToken.balanceOf(admin.address);
+      const adminBalanceBefore = await meowToken.balanceOf(beneficiary.address);
       const tokenSupplyBefore = await meowToken.totalSupply();
       const transferAmt = 13546846845n;
 
-      await meowToken.connect(admin).transfer(randomAcc.address, transferAmt);
+      await meowToken.connect(beneficiary).transfer(randomAcc.address, transferAmt);
 
-      const adminBalanceAfter = await meowToken.balanceOf(admin.address);
+      const adminBalanceAfter = await meowToken.balanceOf(beneficiary.address);
       const tokenSupplyAfter = await meowToken.totalSupply();
 
       expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
       expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(0n);
+    });
+  });
+
+  describe.only("#setMintBeneficiary()", () => {
+    it("#setMintBeneficiary() should set the new address correctly", async () => {
+      const newBeneficiary = randomAcc.address;
+      await meowToken.connect(admin).setMintBeneficiary(newBeneficiary);
+
+      const mintBeneficiary = await meowToken.mintBeneficiary();
+      expect(mintBeneficiary).to.eq(newBeneficiary);
+    });
+
+    it("#setMintBeneficiary() should revert if called by non-admin", async () => {
+      await expect(
+        meowToken.connect(randomAcc).setMintBeneficiary(randomAcc.address)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "AccessControlUnauthorizedAccount"
+      ).withArgs(randomAcc.address, hre.ethers.ZeroHash);
+    });
+
+    it("#setMintBeneficiary() should revert if called with 0x0 address", async () => {
+      await expect(
+        meowToken.connect(admin).setMintBeneficiary(hre.ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "ZeroAddressPassed"
+      );
     });
   });
 });
