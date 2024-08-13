@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { MeowToken, MeowToken__factory } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { INVALID_INFLATION_ARRAY_ERR, INVALID_TIME_ERR, ZERO_ADDRESS_ERR } from "./helpers/errors.ts";
+import { AUTH_ERROR, INVALID_INFLATION_ARRAY_ERR, INVALID_TIME_ERR, ZERO_ADDRESS_ERR } from "./helpers/errors.ts";
 import { experimentalAddHardhatNetworkMessageTraceHook } from "hardhat/config";
 
 
@@ -129,6 +129,26 @@ describe("MeowToken Test", () => {
         ZERO_ADDRESS_ERR
       );
     });
+
+    it("should set the given address as the admin and minter of the contract", async () => {
+      expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), admin.address)).to.be.true;
+      expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), admin.address)).to.be.true;
+    });
+
+    it("should not set other addresses with roles on deployment", async () => {
+      expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), beneficiary.address)).to.be.false;
+      expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), beneficiary.address)).to.be.false;
+
+      expect(await meowToken.hasRole(await meowToken.MINTER_ROLE(), randomAcc.address)).to.be.false;
+      expect(await meowToken.hasRole(await meowToken.DEFAULT_ADMIN_ROLE(), randomAcc.address)).to.be.false;
+    });
+
+    it("Fails when an address that does not have the MINTER_ROLE tries to mint", async () => {
+      await expect(
+        meowToken.connect(beneficiary).mint()
+      ).to.be.revertedWithCustomError(meowToken, AUTH_ERROR)
+        .withArgs(beneficiary.address, hre.ethers.solidityPackedKeccak256(["string"], ["MINTER_ROLE"]));
+    });
   });
 
   describe("#calculateMintableTokens()", () => {
@@ -192,6 +212,7 @@ describe("MeowToken Test", () => {
       tokensPerYear = await meowToken.tokensPerYear(100);
       expect(tokensPerYear).to.eq(fixedFinalRateAmtRef);
     });
+
   });
 
   describe("Minting Scenarios", () => {
