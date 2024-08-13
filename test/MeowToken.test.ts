@@ -143,6 +143,57 @@ describe("MeowToken Test", () => {
     });
   });
 
+  describe("Helper math functions", () => {
+    // eslint-disable-next-line max-len
+    it("#currentInflationRate() should return the correct inflation rate for a given year and return final at the end of array", async () => {
+      const inflationRate = await meowToken.currentInflationRate(7);
+      expect(inflationRate).to.eq(inflationRates[7]);
+
+      let finalRate = await meowToken.currentInflationRate(100);
+      expect(finalRate).to.eq(finalInflationRate);
+      finalRate = await meowToken.currentInflationRate(inflationRates.length + 1);
+      expect(finalRate).to.eq(finalInflationRate);
+    });
+
+    it("#yearSinceDeploy() should return the correct year since deploy", async () => {
+      const deployTime = await meowToken.deployTime();
+      let year = await meowToken.yearSinceDeploy(deployTime + YEAR_IN_SECONDS * 2n + 3n);
+      expect(year).to.eq(3n);
+
+      year = await meowToken.yearSinceDeploy(deployTime + YEAR_IN_SECONDS * 17n + 18231n);
+      expect(year).to.eq(18n);
+
+      year = await meowToken.yearSinceDeploy(deployTime + 1n);
+      expect(year).to.eq(1n);
+    });
+
+    it("#yearSinceDeploy() should revert if time passed is less than deploy time", async () => {
+      const deployTime = await meowToken.deployTime();
+      await expect(
+        meowToken.yearSinceDeploy(deployTime - 1n)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        INVALID_TIME_ERR
+      ).withArgs(deployTime, deployTime - 1n);
+    });
+
+    it("#tokensPerYear() should return the correct tokens per year for a given year", async () => {
+      const baseSupply = await meowToken.baseSupply();
+      const year = 3;
+      let tokensPerYear = await meowToken.tokensPerYear(year);
+      const tokensPerYearRef = baseSupply / 10000n * inflationRates[year];
+
+      expect(tokensPerYear).to.eq(tokensPerYearRef);
+
+      const fixedFinalRateAmtRef = 151515151515000000000000000n;
+
+      tokensPerYear = await meowToken.tokensPerYear(inflationRates.length + 1);
+      expect(tokensPerYear).to.eq(fixedFinalRateAmtRef);
+      tokensPerYear = await meowToken.tokensPerYear(100);
+      expect(tokensPerYear).to.eq(fixedFinalRateAmtRef);
+    });
+  });
+
   describe("Minting Scenarios", () => {
     let lastMintTime : bigint;
     let totalSupply : bigint;
