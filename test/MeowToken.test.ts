@@ -1,8 +1,10 @@
 import * as hre from "hardhat";
 import { expect } from "chai";
-import { MeowToken } from "../typechain";
+import { MeowToken, MeowToken__factory } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { INVALID_INFLATION_ARRAY_ERR, INVALID_TIME_ERR, ZERO_ADDRESS_ERR } from "./helpers/errors.ts";
+import { experimentalAddHardhatNetworkMessageTraceHook } from "hardhat/config";
 
 
 const YEAR_IN_SECONDS = 31536000n;
@@ -16,11 +18,12 @@ describe("MeowToken Test", () => {
   let admin : SignerWithAddress;
   let beneficiary : SignerWithAddress;
   let randomAcc : SignerWithAddress;
+  let MeowTokenFactory : MeowToken__factory;
 
   before(async () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
-    const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
+    MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
     meowToken = await MeowTokenFactory.deploy(
       admin.address,
       admin.address,
@@ -31,95 +34,116 @@ describe("MeowToken Test", () => {
     initialTotalSupply = await meowToken.totalSupply();
   });
 
-  describe("Inflation Calculations", () => {
-    it("#currentInflationRate()", async () => {
-      const deployTime = await meowToken.deployTime();
+  describe("Deployment", () => {
+    it("should revert when inflation rates array is empty", async () => {
+      const inflationRatesEmpty : Array<bigint> = [];
 
-      let newTime;
-      let inflationRate = 900n;
-      for (let i = 0; i < 20; i++) {
-        newTime = deployTime + 31536000n * BigInt(i);
-
-        inflationRate = await meowToken.currentInflationRate(i);
-
-        console.log("IDX: ", i,"New Time: ", newTime.toString(), "Inflation Rate: ", inflationRate.toString());
-      }
-
-      inflationRate = await meowToken.currentInflationRate(deployTime + 1175n);
-      console.log("Inflation Rate: ", inflationRate.toString());
+      await expect(
+        MeowTokenFactory.deploy(
+          admin.address,
+          admin.address,
+          beneficiary.address,
+          inflationRatesEmpty,
+          finalInflationRate,
+        )
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        INVALID_INFLATION_ARRAY_ERR
+      ).withArgs(inflationRatesEmpty);
     });
 
-    // TODO: adapt this to the latest solidity code or delete!
-    it("reference formula", async () => {
-      const inflationRate = [
-        900n,
-        765n,
-        650n,
-        552n,
-        469n,
-        398n,
-        338n,
-        287n,
-        243n,
-        206n,
-        175n,
-        150n,
+    it("should revert if inflation rates array does NOT start from 0", async () => {
+      const inflationRatesInvalid = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n, 12n];
+
+      await expect(
+        MeowTokenFactory.deploy(
+          admin.address,
+          admin.address,
+          beneficiary.address,
+          inflationRatesInvalid,
+          finalInflationRate,
+        )
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        INVALID_INFLATION_ARRAY_ERR
+      ).withArgs(inflationRatesInvalid);
+    });
+
+    it("should deploy with infation rates array of any length and return final rate correctly", async () => {
+      const rates = [
+        0n, 1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n, 12n, 13n, 14n, 15n, 16n, 17n, 18n, 19n, 20n,
       ];
 
-      for (let k = 0; k < 20; k++) {
-        const getTotalSupplyForYear = (year : bigint) => {
-          const yearIdx = Number(year);
-          let totalSupply = 1000000000n * 10n ** 18n;
-          let tokensPerYear = 0n;
-          for (let i = 0; i <= yearIdx; i++) {
-            const rate = inflationRate[i] || 150n;
-            tokensPerYear = totalSupply / 10000n * rate;
-            totalSupply = i !== yearIdx ? totalSupply + tokensPerYear : totalSupply;
-          }
+      const meowToken2 = await MeowTokenFactory.deploy(
+        admin.address,
+        admin.address,
+        beneficiary.address,
+        rates,
+        finalInflationRate,
+      );
 
-          return {
-            totalSupply,
-            tokensPerYear,
-          };
-        };
+      const rateFromContract = await meowToken2.currentInflationRate(rates.length + 2);
+      expect(rateFromContract).to.eq(finalInflationRate);
 
-        const initialSupply = 1000000000n * 10n ** 18n;
-        const startTime = 1722542400n;
-        const currentTime = startTime + 31536000n * BigInt(k);
-        const timeDiff = currentTime - startTime;
+      const rateFromRates = await meowToken2.YEARLY_INFLATION_RATES(3);
+      expect(rateFromRates).to.eq(rates[3]);
+    });
 
-        const yearsPassed = timeDiff / 31536000n;
-        const {
-          totalSupply,
-          tokensPerYear,
-        } = getTotalSupplyForYear(yearsPassed);
+    it("should revert if any of the addresses passed as 0x0", async () => {
+      await expect(
+        MeowTokenFactory.deploy(
+          hre.ethers.ZeroAddress,
+          admin.address,
+          beneficiary.address,
+          inflationRates,
+          finalInflationRate,
+        )
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        ZERO_ADDRESS_ERR
+      );
 
-        const yearStartTime = startTime + yearsPassed * 31536000n;
-        const tokensPerPeriod = tokensPerYear * (currentTime - yearStartTime) / 31536000n;
-        const mintableTokens = totalSupply - initialSupply + tokensPerPeriod;
-        console.log(
-          "Years Passed:", yearsPassed.toString(), ", ",
-          "Inflation Rate (out of 10,000%):", inflationRate[Number(yearsPassed)] || 150n, ", ",
-          "Mintable Tokens Per Year:", mintableTokens.toString(), ", ",
-          "Total Supply:", totalSupply.toString()
-        );
-      }
+      await expect(
+        MeowTokenFactory.deploy(
+          admin.address,
+          hre.ethers.ZeroAddress,
+          beneficiary.address,
+          inflationRates,
+          finalInflationRate,
+        )
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        ZERO_ADDRESS_ERR
+      );
+
+      await expect(
+        MeowTokenFactory.deploy(
+          admin.address,
+          admin.address,
+          hre.ethers.ZeroAddress,
+          inflationRates,
+          finalInflationRate,
+        )
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        ZERO_ADDRESS_ERR
+      );
     });
   });
 
   describe("#calculateMintableTokens()", () => {
-    it("should revert when calculating tokens for time that is equal or less than last mint time", async () => {
+    it("should revert when calculating tokens for time that is less than last mint time", async () => {
       const lastMintTime = await meowToken.lastMintTime();
       await expect(
-        meowToken.calculateMintableTokens(lastMintTime)
+        meowToken.calculateMintableTokens(lastMintTime - 1n)
       ).to.be.revertedWithCustomError(
         meowToken,
-        "InvalidTime"
-      ).withArgs(lastMintTime, lastMintTime);
+        INVALID_TIME_ERR
+      ).withArgs(lastMintTime, lastMintTime - 1n);
     });
   });
 
-  describe.only("Minting Scenarios", () => {
+  describe("Minting Scenarios", () => {
     let lastMintTime : bigint;
     let totalSupply : bigint;
     let timeOfMint1 : bigint;
@@ -183,7 +207,7 @@ describe("MeowToken Test", () => {
     });
   });
 
-  describe.only("Burn on Transfer to Token Address", () => {
+  describe("Burn on Transfer to Token Address", () => {
     it("should burn token upon transfer to token address", async () => {
       const adminBalanceBefore = await meowToken.balanceOf(beneficiary.address);
       const tokenSupplyBefore = await meowToken.totalSupply();
@@ -221,7 +245,7 @@ describe("MeowToken Test", () => {
     });
   });
 
-  describe.only("#setMintBeneficiary()", () => {
+  describe("#setMintBeneficiary()", () => {
     it("#setMintBeneficiary() should set the new address correctly", async () => {
       const newBeneficiary = randomAcc.address;
       await meowToken.connect(admin).setMintBeneficiary(newBeneficiary);
