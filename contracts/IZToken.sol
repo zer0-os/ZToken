@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import { IInflationaryToken } from "./IInflationaryToken.sol";
 
 
-interface IMeowToken is IInflationaryToken {
+interface IZToken is IInflationaryToken {
     error ZeroAddressPassed();
 
     event MintBeneficiaryUpdated(address indexed newBeneficiary);

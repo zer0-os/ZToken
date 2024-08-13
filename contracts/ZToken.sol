@@ -2,11 +2,11 @@
 pragma solidity 0.8.26;
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { IMeowToken } from "./IMeowToken.sol";
+import { IZToken } from "./IZToken.sol";
 import { InflationaryToken } from "./InflationaryToken.sol";
 
 
-contract MeowToken is InflationaryToken, AccessControl, IMeowToken {
+contract ZToken is InflationaryToken, AccessControl, IZToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /*** Constants ***/
@@ -51,7 +51,7 @@ contract MeowToken is InflationaryToken, AccessControl, IMeowToken {
     /**
      * @notice Returns the initial token supply at deploy time that is used in the inflation calculations.
      */
-    function baseSupply() public view override(InflationaryToken, IMeowToken) returns (uint256) {
+    function baseSupply() public view override(InflationaryToken, IZToken) returns (uint256) {
         return INITIAL_SUPPLY_BASE * 10 ** decimals();
     }
 
