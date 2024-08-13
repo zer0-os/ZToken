@@ -1,19 +1,26 @@
-import { ethers } from "ethers";
-
-
+export const YEAR_IN_SECONDS = 31536000n;
 export const INFLATION_RATES_DEFAULT = [0n, 900n, 765n, 650n, 552n, 469n, 398n, 338n, 287n, 243n, 206n, 175n];
 export const FINAL_INFLATION_RATE_DEFAULT = 150n;
 export const MINTABLE_YEARLY_TOKENS_REF_DEFAULT = [
-  ethers.parseUnits("909090909"),
-  ethers.parseUnits("772727272"),
-  ethers.parseUnits("656565656"),
-  ethers.parseUnits("557575757"),
-  ethers.parseUnits("473737373"),
-  ethers.parseUnits("402020202"),
-  ethers.parseUnits("341414141"),
-  ethers.parseUnits("289898989"),
-  ethers.parseUnits("245454545"),
-  ethers.parseUnits("208080808"),
-  ethers.parseUnits("176767676"),
+  0n, // so that index matches year number since deploy
+  909090909090000000000000000n,
+  772727272726500000000000000n,
+  656565656565000000000000000n,
+  557575757575200000000000000n,
+  473737373736900000000000000n,
+  402020202019800000000000000n,
+  341414141413800000000000000n,
+  289898989898700000000000000n,
+  245454545454300000000000000n,
+  208080808080600000000000000n,
+  176767676767500000000000000n,
 ];
-export const FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT = ethers.parseUnits("151515151");
+export const FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT = 151515151515000000000000000n;
+
+export const getTokensPerPeriod = (yearIndex : number, periodLength : bigint) : bigint => {
+  const perYear = !!MINTABLE_YEARLY_TOKENS_REF_DEFAULT[yearIndex]
+    ? MINTABLE_YEARLY_TOKENS_REF_DEFAULT[yearIndex]
+    : FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT;
+
+  return periodLength * perYear / YEAR_IN_SECONDS;
+};
