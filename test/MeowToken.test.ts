@@ -8,12 +8,13 @@ import { percents } from "./helpers/percents";
 import { AUTH_ERROR } from "./helpers/errors";
 import { TRANSFER } from "./helpers/events";
 import { years } from "@nomicfoundation/hardhat-network-helpers/dist/src/helpers/time/duration";
+import { parseEther } from "ethers";
 
 
 const YEAR_IN_SECONDS = 31536000n;
 let initialTotalSupply : bigint;
 
-// TODO how are these values calculated?
+// initial supply * inflation percent of each year
 const mintableTokensEachYear = [
   909090909n,
   772727272n,
@@ -29,7 +30,7 @@ const mintableTokensEachYear = [
   151515151n,
 ];
 
-// TODO how are these values calculated?
+// initial_supply * inflation_percent of each year - initial_supply
 const accumulatedMintableTokens = [
   909090909n,
   1681818181n,
@@ -72,7 +73,11 @@ describe("MeowToken Test", () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
     const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
-    meowToken = await MeowTokenFactory.deploy(admin.address, admin.address);
+    meowToken = await MeowTokenFactory.deploy(
+      admin.address,
+      admin.address,
+      beneficiary.address,
+    );
     initialTotalSupply = await meowToken.totalSupply();
 
     deployTime = await meowToken.deployTime();
@@ -97,7 +102,7 @@ describe("MeowToken Test", () => {
       it("Succeeds when an authorized address calls to mint", async () => {
         const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
   
-        expect(await meowToken.connect(admin).mint(beneficiary.address)).to.emit(meowToken, TRANSFER);
+        expect(await meowToken.connect(admin).mint()).to.emit(meowToken, TRANSFER);
   
         const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
   
@@ -110,7 +115,7 @@ describe("MeowToken Test", () => {
       });
   
       it("Fails when an address that does not have the MINTER_ROLE tries to mint", async () => {
-        await expect(meowToken.connect(beneficiary).mint(beneficiary.address)).to.be.revertedWithCustomError(meowToken, AUTH_ERROR);
+        await expect(meowToken.connect(beneficiary).mint()).to.be.revertedWithCustomError(meowToken, AUTH_ERROR);
       });
     });
 
@@ -189,11 +194,6 @@ describe("MeowToken Test", () => {
         // );
       }
     });
-
-
-    // it("Should revert when passed time earlier than deploytime", async () => {
-
-    // });
   });
 
   describe("#calculateMintableTokens()", () => {
@@ -211,7 +211,6 @@ describe("MeowToken Test", () => {
   describe("Minting Scenarios", () => {
     let lastMintTime : bigint;
     let totalSupply : bigint;
-
     let timeOfMint1 : bigint;
     let firstMintAmtRef : bigint;
 
@@ -228,11 +227,10 @@ describe("MeowToken Test", () => {
       timeOfMint1 += 1n;
 
       const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
-      await meowToken.connect(admin).mint(beneficiary.address);
+      await meowToken.connect(admin).mint();
       const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
 
       const balDiff = beneficiaryBalAfter - beneficiaryBalBefore;
-      console.log("Bal Diff: ", balDiff.toString());
       expect(balDiff).to.eq(firstMintAmtRef);
 
       // check that all state values set properly!
@@ -243,7 +241,7 @@ describe("MeowToken Test", () => {
       expect(totalSupply).to.eq(initialTotalSupply + firstMintAmtRef);
     });
 
-    it("Should mint proper amount at the end of the year based on `lastMintLeftoverTokens`", async () => {
+    it("should mint proper amount when minted again sometime in the 3rd year", async () => {
       const deployTime = await meowToken.deployTime();
 
       const tokensPerYear = initialTotalSupply * 900n / 10000n;
@@ -256,7 +254,7 @@ describe("MeowToken Test", () => {
       const secondMintTime = deployTime + (YEAR_IN_SECONDS) * 2n + periodSeconds;
       await time.increaseTo(secondMintTime);
 
-      await meowToken.connect(admin).mint(beneficiary.address);
+      await meowToken.connect(admin).mint();
 
       const balanceAfter = await meowToken.balanceOf(beneficiary.address);
       const balanceDiff = balanceAfter - balanceBefore;
@@ -309,6 +307,216 @@ describe("MeowToken Test", () => {
 
       expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
       expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(0n);
+    });
+  });
+
+  describe("Minting scenarios, where each test has clear contract", () => {
+
+    const getYearMintableTokensAmount = async (year : number) => {
+
+      const inflationRate = await meowToken.YEARLY_INFLATION_RATES(year);
+      const tokensPerYearRef = (initialTotalSupply * inflationRate) / 10000n;
+
+      return tokensPerYearRef;
+    };
+
+    beforeEach(async () => {
+      [admin, beneficiary] = await hre.ethers.getSigners();
+
+      const MeowTokenFactory = await hre.ethers.getContractFactory("MeowToken");
+      meowToken = await MeowTokenFactory.deploy(admin.address, admin.address, beneficiary.address);
+      initialTotalSupply = await meowToken.totalSupply();
+
+      deployTime = await meowToken.deployTime();
+    });
+
+    it("Should revert with `InvalidTime` error with 0 passed time", async () => {
+
+      deployTime = await meowToken.deployTime();
+
+      // spend 0 seconds
+      const firstMintTime = deployTime;
+
+      await expect(
+        await meowToken.calculateMintableTokens(firstMintTime)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "InvalidTime",
+      ).withArgs(
+        firstMintTime - 2n,
+        deployTime - 2n
+      );
+    });
+
+    it("Should revert with `InvalidTime` when passed time earlier than deploytime", async () => {
+      deployTime = await meowToken.deployTime();
+
+      await expect(
+        await meowToken.calculateMintableTokens(deployTime - 31536000n)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "InvalidTime",
+      ).withArgs(
+        deployTime - 31536000n,
+        deployTime - 31536000n
+      );
+    });
+
+    it("Should return correct years amount of tokens, increased each year (non-mint)", async () => {
+
+      let currentTime = deployTime;
+
+      for (let year = 0; year < 10; year++) {
+        // + year each iteration
+        currentTime += 31536000n;
+
+        const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
+
+        expect(
+          tokensFromContract / parseEther("1")
+        ).to.be.equal(
+          accumulatedMintableTokens[year]
+        );
+      }
+    });
+
+    it("Should return correct years amount of tokens, increased each year (mint)", async () => {
+      let currentTime = deployTime;
+
+      let timeOfMint = 0n;
+      let minted = 0n;
+
+      for (let year = 1; year < 10; year++) {
+        currentTime += 31536000n;
+        timeOfMint = currentTime;
+
+        const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
+        const expectedAmount = await getYearMintableTokensAmount(year);
+
+        expect(
+          tokensFromContract
+        ).to.be.equal(
+          expectedAmount
+        );
+
+        await time.increaseTo(timeOfMint - 1n);
+        timeOfMint += 1n;
+
+        const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
+        await meowToken.connect(admin).mint();
+        const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
+
+        minted = beneficiaryBalAfter - initialTotalSupply;
+
+        console.log(beneficiaryBalBefore);
+        console.log(beneficiaryBalAfter);
+      }
+    });
+
+    it("Should return correct amount of tokens, increased each 10.512.000 sec (1/3 part of year)", async () => {
+      let currentTime = deployTime;
+
+      for (let timeInterval = 0; timeInterval < 14; timeInterval++) {
+        currentTime += 10512000n;
+
+        await expect(
+          await meowToken.calculateMintableTokens(currentTime) / parseEther("1")
+        ).to.be.equal(
+          mintableTokensEachYear[timeInterval] / 3n
+        );
+      }
+    });
+
+    it("", async () => {
+      // TODO myself: deploy, wait some time (31536000 and 31535999), mint, then wait and mint again
+    });
+
+    it("", async () => {
+      let currentTime = deployTime;
+
+      currentTime += 31536000n;
+
+      await meowToken.connect(admin).mint();
+
+      // TODO myself: deploy, wait some years and then mint (like after 2y and some seconds)
+    });
+
+    it("", async () => {
+      // TODO myself: each second
+    });
+
+    it("", async () => {
+      // TODO myself: a lot of years. SHould be 1.5% inflation and a lot of tokens
+    });
+
+    it("", async () => {
+      // TODO myself: 1000000 years
+    });
+  });
+
+  describe("Burn on Transfer to Token Address", () => {
+    it("should burn token upon transfer to token address", async () => {
+      const adminBalanceBefore = await meowToken.balanceOf(beneficiary.address);
+      const tokenSupplyBefore = await meowToken.totalSupply();
+      const transferAmt = 13546846845n;
+
+      await meowToken.connect(beneficiary).transfer(meowToken.target, transferAmt);
+
+      const adminBalanceAfter = await meowToken.balanceOf(beneficiary.address);
+      const tokenSupplyAfter = await meowToken.totalSupply();
+
+      expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
+      expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(transferAmt);
+
+      // make sure we can't transfer to 0x0 address
+      await expect(
+        meowToken.connect(beneficiary).transfer(hre.ethers.ZeroAddress, transferAmt)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "ERC20InvalidReceiver"
+      ).withArgs(hre.ethers.ZeroAddress);
+    });
+
+    it("should NOT burn tokens if transferred to any regular address", async () => {
+      const adminBalanceBefore = await meowToken.balanceOf(beneficiary.address);
+      const tokenSupplyBefore = await meowToken.totalSupply();
+      const transferAmt = 13546846845n;
+
+      await meowToken.connect(beneficiary).transfer(randomAcc.address, transferAmt);
+
+      const adminBalanceAfter = await meowToken.balanceOf(beneficiary.address);
+      const tokenSupplyAfter = await meowToken.totalSupply();
+
+      expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
+      expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(0n);
+    });
+  });
+
+  describe("#setMintBeneficiary()", () => {
+    it("#setMintBeneficiary() should set the new address correctly", async () => {
+      const newBeneficiary = randomAcc.address;
+      await meowToken.connect(admin).setMintBeneficiary(newBeneficiary);
+
+      const mintBeneficiary = await meowToken.mintBeneficiary();
+      expect(mintBeneficiary).to.eq(newBeneficiary);
+    });
+
+    it("#setMintBeneficiary() should revert if called by non-admin", async () => {
+      await expect(
+        meowToken.connect(randomAcc).setMintBeneficiary(randomAcc.address)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "AccessControlUnauthorizedAccount"
+      ).withArgs(randomAcc.address, hre.ethers.ZeroHash);
+    });
+
+    it("#setMintBeneficiary() should revert if called with 0x0 address", async () => {
+      await expect(
+        meowToken.connect(admin).setMintBeneficiary(hre.ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(
+        meowToken,
+        "ZeroAddressPassed"
+      );
     });
   });
 });

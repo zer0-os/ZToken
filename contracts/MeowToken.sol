@@ -14,6 +14,9 @@ contract MeowToken is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     error InvalidTime(uint256 lastMintTime, uint256 currentTime);
+    error ZeroAddressPassed();
+
+    event MintBeneficiaryUpdated(address indexed newBeneficiary);
 
     /*** Inflation Constants ***/
     uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
@@ -23,21 +26,38 @@ contract MeowToken is ERC20, AccessControl {
     uint256 public immutable deployTime;
     uint256 public lastMintTime;
 
+    // TODO: is this a good name?
+    address public mintBeneficiary;
+
     // TODO: possibly initialize this from constructor!
     uint16[12] public YEARLY_INFLATION_RATES = [0, 900, 765, 650, 552, 469, 398, 338, 287, 243, 206, 175];
 
-    constructor(address defaultAdmin, address minter) ERC20("MEOW", "MEOW") {
-        _mint(msg.sender, baseSupply());
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(MINTER_ROLE, minter);
+    // TODO: add name and symbol as constructor arguments
+    constructor(
+        address _defaultAdmin,
+        address _minter,
+        address _mintBeneficiary
+    ) ERC20("MEOW", "MEOW") {
+        if (
+            _mintBeneficiary == address(0)
+            || _defaultAdmin == address(0)
+            || _minter == address(0)
+        ) revert ZeroAddressPassed();
+
+        _mint(_mintBeneficiary, baseSupply());
+        _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
+        _grantRole(MINTER_ROLE, _minter);
+
+        mintBeneficiary = _mintBeneficiary;
+
         deployTime = block.timestamp;
         lastMintTime = block.timestamp;
     }
 
-    function mint(address to) public onlyRole(MINTER_ROLE) {
+    function mint() public onlyRole(MINTER_ROLE) {
         uint256 totalToMint = calculateMintableTokens(block.timestamp);
         lastMintTime = block.timestamp;
-        _mint(to, totalToMint);
+        _mint(mintBeneficiary, totalToMint);
     }
 
     function yearSinceDeploy(uint256 time) public view returns (uint256) {
@@ -109,6 +129,12 @@ contract MeowToken is ERC20, AccessControl {
         mintableTokens += _tokensPerPeriod(newYearTokens, newYearPeriodLength);
 
         return mintableTokens;
+    }
+
+    function setMintBeneficiary(address _mintBeneficiary) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_mintBeneficiary == address(0)) revert ZeroAddressPassed();
+        mintBeneficiary = _mintBeneficiary;
+        emit MintBeneficiaryUpdated(_mintBeneficiary);
     }
 
     function _tokensPerPeriod(uint256 tokensPerYear, uint256 periodSeconds) internal pure returns (uint256) {
