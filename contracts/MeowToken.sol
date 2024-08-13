@@ -1,47 +1,44 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { IMeowToken } from "./IMeowToken.sol";
+import { InflationaryToken } from "./InflationaryToken.sol";
 
 
-// TODO:
-//  1. possibly split into multiple contracts and inherit
-//  2. consider adding a state var for beneficiary instead of passing it as argument
-//  3. pass name and symbol as constructor arguments
-//  4. consider passing inflation rates as arguments to the constructor
-contract MeowToken is ERC20, AccessControl {
+contract MeowToken is InflationaryToken, AccessControl, IMeowToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    error InvalidTime(uint256 lastMintTime, uint256 currentTime);
-    error ZeroAddressPassed();
-
-    event MintBeneficiaryUpdated(address indexed newBeneficiary);
-
-    /*** Inflation Constants ***/
+    /*** Constants ***/
     uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
-    uint256 public constant MIN_INFLATION_RATE = 150; // 1.5%
-    uint256 public constant BASIS_POINTS = 10000;
 
-    uint256 public immutable deployTime;
-    uint256 public lastMintTime;
+    /*
+     * @notice Address that will receive all the minted tokens. Can be updated by the ADMIN_ROLE.
+     */
+    address public override mintBeneficiary;
 
-    // TODO: is this a good name?
-    address public mintBeneficiary;
-
-    // TODO: possibly initialize this from constructor!
-    uint16[12] public YEARLY_INFLATION_RATES = [0, 900, 765, 650, 552, 469, 398, 338, 287, 243, 206, 175];
-
-    // TODO: add name and symbol as constructor arguments
+    /**
+     * @dev Please note the param comments!
+     * @param _defaultAdmin is the address that will be granted the DEFAULT_ADMIN_ROLE
+     * @param _minter is the address that will be granted the MINTER_ROLE
+     * @param _mintBeneficiary is the address that will receive all the minted tokens, it's state var can be reset later
+     * @param _inflationRates array can NOT be empty, and the first element must be 0! Need to be passed as
+     *  basis points (where 100% is 10,000), so 1% is 100, 2% is 200, etc.
+     * @param _finalInflationRate is the last inflation rate after all the yearly rates have been applied.
+     *  It is returned when `yearIndex` goes past the length of the `YEARLY_INFLATION_RATES` array
+     *  and the inflation plateaus at this rate forever once reached. Also passed as basis points.
+     */
     constructor(
         address _defaultAdmin,
         address _minter,
-        address _mintBeneficiary
-    ) ERC20("MEOW", "MEOW") {
+        address _mintBeneficiary,
+        uint16[] memory _inflationRates,
+        uint16 _finalInflationRate
+    ) InflationaryToken("MEOW", "MEOW", _inflationRates, _finalInflationRate) {
         if (
-            _mintBeneficiary == address(0)
-            || _defaultAdmin == address(0)
+            _defaultAdmin == address(0)
             || _minter == address(0)
+            || _mintBeneficiary == address(0)
         ) revert ZeroAddressPassed();
 
         _mint(_mintBeneficiary, baseSupply());
@@ -49,100 +46,34 @@ contract MeowToken is ERC20, AccessControl {
         _grantRole(MINTER_ROLE, _minter);
 
         mintBeneficiary = _mintBeneficiary;
-
-        deployTime = block.timestamp;
-        lastMintTime = block.timestamp;
     }
 
-    function mint() public onlyRole(MINTER_ROLE) {
-        uint256 totalToMint = calculateMintableTokens(block.timestamp);
-        lastMintTime = block.timestamp;
-        _mint(mintBeneficiary, totalToMint);
-    }
-
-    function yearSinceDeploy(uint256 time) public view returns (uint256) {
-        return (time - deployTime) / 365 days + 1;
-    }
-
-    function currentInflationRate(uint256 yearIndex) public view returns (uint256) {
-        if (yearIndex >= YEARLY_INFLATION_RATES.length) {
-            return MIN_INFLATION_RATE;
-        }
-        return YEARLY_INFLATION_RATES[yearIndex];
-    }
-
-    function getTotalYearlyTokens(
-        uint256 lastMintYearIdx,
-        uint256 currentYearIdx
-    ) public view returns (uint256) {
-        uint256 mintableTokens;
-        for (uint256 i = lastMintYearIdx; i < currentYearIdx; i++) {
-            mintableTokens += tokensPerYear(i);
-        }
-
-        return mintableTokens;
-    }
-
-    function tokensPerYear(uint256 yearIdx) public view returns (uint256) {
-        uint256 inflationRate = currentInflationRate(yearIdx);
-        return baseSupply() * inflationRate / BASIS_POINTS;
-    }
-
-    function baseSupply() public view returns (uint256) {
+    /**
+     * @notice Returns the initial token supply at deploy time that is used in the inflation calculations.
+     */
+    function baseSupply() public view override(InflationaryToken, IMeowToken) returns (uint256) {
         return INITIAL_SUPPLY_BASE * 10 ** decimals();
     }
 
-    function calculateMintableTokens(uint256 time) public view returns (uint256) {
-        uint256 lastTime = lastMintTime;
-
-        if (time <= lastTime) {
-            revert InvalidTime(lastTime, time);
-        }
-
-        uint256 currentYear = yearSinceDeploy(time);
-        uint256 yearOfLastMint = yearSinceDeploy(lastTime);
-
-        uint256 yearStartPoint = deployTime + yearOfLastMint * 365 days;
-
-        uint256 lastYearTokens;
-        // less than year passed since last mint/deploy
-        if (time < yearStartPoint) {
-            lastYearTokens = tokensPerYear(yearOfLastMint);
-            return _tokensPerPeriod(lastYearTokens, time - lastTime);
-        }
-
-        uint256 yearsSinceLastMint = (time - yearStartPoint) / 365 days;
-        uint256 newYearPeriodLength = (time - yearStartPoint) % 365 days;
-
-        uint256 mintableTokens;
-        if (yearsSinceLastMint > 0) {
-            mintableTokens = getTotalYearlyTokens(
-                yearOfLastMint + 1,
-                currentYear
-            );
-        }
-
-        lastYearTokens = tokensPerYear(yearOfLastMint);
-        mintableTokens += _tokensPerPeriod(lastYearTokens, yearStartPoint - lastTime);
-
-        uint256 newYearTokens = tokensPerYear(currentYear);
-        mintableTokens += _tokensPerPeriod(newYearTokens, newYearPeriodLength);
-
-        return mintableTokens;
+    /**
+     * @notice Mints tokens to the `mintBeneficiary` address based on the inflation formula and rates per year.
+     */
+    function mint() public override onlyRole(MINTER_ROLE) {
+        _mintInflationary(mintBeneficiary);
     }
 
-    function setMintBeneficiary(address _mintBeneficiary) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    /**
+     * @notice Updates the address that will receive all the minted tokens. Only ADMIN can call.
+     * @param _mintBeneficiary The new address that will receive all the minted tokens
+     */
+    function setMintBeneficiary(address _mintBeneficiary) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_mintBeneficiary == address(0)) revert ZeroAddressPassed();
         mintBeneficiary = _mintBeneficiary;
         emit MintBeneficiaryUpdated(_mintBeneficiary);
     }
 
-    function _tokensPerPeriod(uint256 tokensPerYear, uint256 periodSeconds) internal pure returns (uint256) {
-        return tokensPerYear * periodSeconds / 365 days;
-    }
-
     /**
-     * @dev Burn from totalSupply when sent to this contract.
+     * @dev Overriden ERC20 function that will burn the amount of tokens transferred to this address.
      */
     function _update(address from, address to, uint256 value) internal override {
         if (to == address(this)) {
