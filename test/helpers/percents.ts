@@ -13,3 +13,5 @@ export const percents = [
   175n,
   150n,
 ];
+
+export const BASIS_POINTS = 10000n;
