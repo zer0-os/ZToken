@@ -1,6 +1,6 @@
 import * as hre from "hardhat";
 import { expect } from "chai";
-import { ZToken, ZToken__factory } from "../typechain/index.ts";
+import { ZToken, ZToken__factory } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import {
@@ -9,13 +9,13 @@ import {
   INVALID_TIME_ERR,
   ZERO_ADDRESS_ERR,
   ZERO_INITIAL_SUPPLY_ERR,
-} from "./helpers/errors.ts";
+} from "./helpers/errors";
 import {
   FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
   INFLATION_RATES_DEFAULT, INITIAL_SUPPLY_DEFAULT,
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
-} from "./helpers/inflation.ts";
+} from "./helpers/inflation";
 
 
 const tokenName = "Z";
