@@ -16,7 +16,7 @@ const tokenName = "Z";
 const tokenSymbol = "Z";
 
 
-describe("MeowToken Test", () => {
+describe("ZToken Test", () => {
   let zToken : ZToken;
   let admin : SignerWithAddress;
   let beneficiary : SignerWithAddress;
@@ -88,7 +88,7 @@ describe("MeowToken Test", () => {
         0n, 1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n, 12n, 13n, 14n, 15n, 16n, 17n, 18n, 19n, 20n,
       ];
 
-      const meowToken2 = await ZTokenFactory.deploy(
+      const zToken2 = await ZTokenFactory.deploy(
         tokenName,
         tokenSymbol,
         admin.address,
@@ -98,10 +98,10 @@ describe("MeowToken Test", () => {
         FINAL_INFLATION_RATE_DEFAULT,
       );
 
-      const rateFromContract = await meowToken2.currentInflationRate(rates.length + 2);
+      const rateFromContract = await zToken2.currentInflationRate(rates.length + 2);
       expect(rateFromContract).to.eq(FINAL_INFLATION_RATE_DEFAULT);
 
-      const rateFromRates = await meowToken2.YEARLY_INFLATION_RATES(3);
+      const rateFromRates = await zToken2.YEARLY_INFLATION_RATES(3);
       expect(rateFromRates).to.eq(rates[3]);
     });
 

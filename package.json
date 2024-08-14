@@ -1,5 +1,5 @@
 {
-  "name": "@zero-tech/zero-tokens",
+  "name": "@zero-tech/z-token",
   "version": "0.0.1",
   "description": "Solidity token contracts",
   "main": "index.js",
