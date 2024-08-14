@@ -29,12 +29,14 @@ contract ZToken is InflationaryToken, AccessControl, IZToken {
      *  and the inflation plateaus at this rate forever once reached. Also passed as basis points.
      */
     constructor(
+        string memory _name,
+        string memory _symbol,
         address _defaultAdmin,
         address _minter,
         address _mintBeneficiary,
         uint16[] memory _inflationRates,
         uint16 _finalInflationRate
-    ) InflationaryToken("MEOW", "MEOW", _inflationRates, _finalInflationRate) {
+    ) InflationaryToken(_name, _symbol, _inflationRates, _finalInflationRate) {
         if (
             _defaultAdmin == address(0)
             || _minter == address(0)

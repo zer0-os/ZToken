@@ -3,7 +3,6 @@ import { expect } from "chai";
 import { ZToken, ZToken__factory } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { parseEther } from "ethers";
 import { AUTH_ERROR, INVALID_INFLATION_ARRAY_ERR, INVALID_TIME_ERR, ZERO_ADDRESS_ERR } from "./helpers/errors.ts";
 import {
   FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
@@ -11,6 +10,10 @@ import {
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
 } from "./helpers/inflation.ts";
+
+
+const tokenName = "Z";
+const tokenSymbol = "Z";
 
 
 describe("MeowToken Test", () => {
@@ -28,6 +31,8 @@ describe("MeowToken Test", () => {
 
     ZTokenFactory = await hre.ethers.getContractFactory("ZToken");
     zToken = await ZTokenFactory.deploy(
+      tokenName,
+      tokenSymbol,
       admin.address,
       admin.address,
       beneficiary.address,
@@ -45,6 +50,8 @@ describe("MeowToken Test", () => {
 
       await expect(
         ZTokenFactory.deploy(
+          tokenName,
+          tokenSymbol,
           admin.address,
           admin.address,
           beneficiary.address,
@@ -62,6 +69,8 @@ describe("MeowToken Test", () => {
 
       await expect(
         ZTokenFactory.deploy(
+          tokenName,
+          tokenSymbol,
           admin.address,
           admin.address,
           beneficiary.address,
@@ -80,6 +89,8 @@ describe("MeowToken Test", () => {
       ];
 
       const meowToken2 = await ZTokenFactory.deploy(
+        tokenName,
+        tokenSymbol,
         admin.address,
         admin.address,
         beneficiary.address,
@@ -97,6 +108,8 @@ describe("MeowToken Test", () => {
     it("should revert if any of the addresses passed as 0x0", async () => {
       await expect(
         ZTokenFactory.deploy(
+          tokenName,
+          tokenSymbol,
           hre.ethers.ZeroAddress,
           admin.address,
           beneficiary.address,
@@ -110,6 +123,8 @@ describe("MeowToken Test", () => {
 
       await expect(
         ZTokenFactory.deploy(
+          tokenName,
+          tokenSymbol,
           admin.address,
           hre.ethers.ZeroAddress,
           beneficiary.address,
@@ -123,6 +138,8 @@ describe("MeowToken Test", () => {
 
       await expect(
         ZTokenFactory.deploy(
+          tokenName,
+          tokenSymbol,
           admin.address,
           admin.address,
           hre.ethers.ZeroAddress,
@@ -450,6 +467,8 @@ describe("Minting scenarios on clean state.", () => {
 
     ZTokenFactory = await hre.ethers.getContractFactory("ZToken");
     zToken = await ZTokenFactory.deploy(
+      tokenName,
+      tokenSymbol,
       admin.address,
       admin.address,
       beneficiary.address,
