@@ -17,10 +17,13 @@ export const MINTABLE_YEARLY_TOKENS_REF_DEFAULT = [
 ];
 export const FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT = 151515151515000000000000000n;
 
-export const getTokensPerPeriod = (yearIndex : number, periodLength : bigint) : bigint => {
-  const perYear = !!MINTABLE_YEARLY_TOKENS_REF_DEFAULT[yearIndex]
+export const getYearlyMintableTokens = (yearIndex : number) : bigint =>
+  MINTABLE_YEARLY_TOKENS_REF_DEFAULT[yearIndex] !== undefined
     ? MINTABLE_YEARLY_TOKENS_REF_DEFAULT[yearIndex]
     : FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT;
+
+export const getTokensPerPeriod = (yearIndex : number, periodLength : bigint) : bigint => {
+  const perYear = getYearlyMintableTokens(yearIndex);
 
   return periodLength * perYear / YEAR_IN_SECONDS;
 };

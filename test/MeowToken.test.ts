@@ -6,7 +6,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { parseEther } from "ethers";
 import { AUTH_ERROR, INVALID_INFLATION_ARRAY_ERR, INVALID_TIME_ERR, ZERO_ADDRESS_ERR } from "./helpers/errors.ts";
 import {
-  FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod,
+  FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
   INFLATION_RATES_DEFAULT,
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
@@ -166,6 +166,12 @@ describe("MeowToken Test", () => {
         INVALID_TIME_ERR
       ).withArgs(lastMintTime, lastMintTime - 1n);
     });
+
+    it("#calculateMintableTokens() should return 0 tokens when no time has passed", async () => {
+      const tokensFromContract = await zToken.calculateMintableTokens(deployTime);
+
+      expect(tokensFromContract).to.be.equal(0n);
+    });
   });
 
   describe("Helper math functions", () => {
@@ -224,6 +230,7 @@ describe("MeowToken Test", () => {
     let secondMintAmtRef : bigint;
     let year3Period : bigint;
     let year4Period : bigint;
+    let year12Period : bigint;
 
     it("[1st year] middle of the first year", async () => {
       totalSupply = await zToken.totalSupply();
@@ -281,9 +288,9 @@ describe("MeowToken Test", () => {
     });
 
     it("[3rd + 4th year] end of 3rd year and 3 times in one 4th year", async () => {
-      const year4Start = deployTime + (YEAR_IN_SECONDS) * 3n - 1n;
+      const year3End = deployTime + YEAR_IN_SECONDS * 3n - 1n;
 
-      await time.increaseTo(year4Start);
+      await time.increaseTo(year3End);
 
       // mint leftovers to close out 3rd year
       const balanceBefore1 = await zToken.balanceOf(beneficiary.address);
@@ -301,7 +308,7 @@ describe("MeowToken Test", () => {
       ];
       year4Period = periods.reduce((acc, period) => acc + period, 0n);
 
-      let timeOfMint = year4Start + 1n;
+      let timeOfMint = year3End + 1n;
       await periods.reduce(
         async (acc, period, idx) => {
           await acc;
@@ -322,8 +329,8 @@ describe("MeowToken Test", () => {
     });
 
     it("[12th year] after 8 years and 8919854 seconds where the inflation plateaus", async () => {
-      const periodSinceYearStart = 8919854n; // 103 days, 5 hours, 44 min, 14 sec
-      const timeOfMint = deployTime + YEAR_IN_SECONDS * 11n + periodSinceYearStart - 1n;
+      year12Period = 8919854n; // 103 days, 5 hours, 44 min, 14 sec
+      const timeOfMint = deployTime + YEAR_IN_SECONDS * 11n + year12Period - 1n;
 
       await time.increaseTo(timeOfMint);
 
@@ -336,7 +343,28 @@ describe("MeowToken Test", () => {
         tokenAmountRef += MINTABLE_YEARLY_TOKENS_REF_DEFAULT[year];
       }
 
-      tokenAmountRef += getTokensPerPeriod(12, periodSinceYearStart);
+      tokenAmountRef += getTokensPerPeriod(12, year12Period);
+
+      expect(balanceAfter - balanceBefore).to.eq(tokenAmountRef);
+    });
+
+    it("[33rd year] during the inflation plateau", async () => {
+      const newYearPeriod = 31545n;
+      const timeOfMint = deployTime + YEAR_IN_SECONDS * 32n + newYearPeriod - 1n;
+
+      await time.increaseTo(timeOfMint);
+
+      const balanceBefore = await zToken.balanceOf(beneficiary.address);
+      await zToken.connect(admin).mint();
+      const balanceAfter = await zToken.balanceOf(beneficiary.address);
+
+      // previous 12th year leftoved
+      let tokenAmountRef = getTokensPerPeriod(33, YEAR_IN_SECONDS - year12Period);
+      // full years passed
+      // all of the years will have the same amount minted, because we start after the plateau, so rate is always 1.5%
+      tokenAmountRef += getYearlyMintableTokens(13) * 20n; // 13th to 32nd year
+      // 33rd year period
+      tokenAmountRef += getTokensPerPeriod(33, newYearPeriod);
 
       expect(balanceAfter - balanceBefore).to.eq(tokenAmountRef);
     });
@@ -409,95 +437,85 @@ describe("MeowToken Test", () => {
   });
 });
 
-describe.skip("Minting scenarios, where each test has clear contract", () => {
-  // TODO: create a separate deploy for this!
-  it("Should return correct years amount of tokens, increased each year (non-mint)", async () => {
-    let currentTime = deployTime;
+describe("Minting scenarios on clean state.", () => {
+  let zToken : ZToken;
+  let admin : SignerWithAddress;
+  let beneficiary : SignerWithAddress;
+  let ZTokenFactory : ZToken__factory;
 
-    for (let year = 0; year < 10; year++) {
-      // + year each iteration
-      currentTime += 31536000n;
+  let deployTime : bigint;
 
-      const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
+  beforeEach(async () => {
+    [admin, beneficiary] = await hre.ethers.getSigners();
+
+    ZTokenFactory = await hre.ethers.getContractFactory("ZToken");
+    zToken = await ZTokenFactory.deploy(
+      admin.address,
+      admin.address,
+      beneficiary.address,
+      INFLATION_RATES_DEFAULT,
+      FINAL_INFLATION_RATE_DEFAULT,
+    );
+
+    deployTime = await zToken.deployTime();
+  });
+
+  it("should mint the correct amount of tokens when minted every second", async () => {
+    for (let second = 1; second < 13; second++) {
+      const beneficiaryBalBefore = await zToken.balanceOf(beneficiary.address);
+      await zToken.connect(admin).mint();
+      const beneficiaryBalAfter = await zToken.balanceOf(beneficiary.address);
+
+      const minted = beneficiaryBalAfter - beneficiaryBalBefore;
 
       expect(
-        tokensFromContract / parseEther("1")
+        minted
       ).to.be.equal(
-        accumulatedMintableTokens[year]
+        getTokensPerPeriod(1, 1n),
+        second.toString()
       );
     }
   });
 
-  it("Should return correct years amount of tokens, increased each year (mint)", async () => {
+  it("#calculateMintableTokens() should return correct years amount of tokens, increased each year", async () => {
     let currentTime = deployTime;
+    let amountRef = 0n;
 
-    let timeOfMint = 0n;
-    let minted = 0n;
-
-    for (let year = 1; year < 10; year++) {
+    for (let year = 0; year < 16; year++) {
+      const tokensFromContract = await zToken.calculateMintableTokens(currentTime);
+      // + year each iteration
       currentTime += 31536000n;
-      timeOfMint = currentTime;
-
-      const tokensFromContract = await meowToken.calculateMintableTokens(currentTime);
-      const expectedAmount = await getYearMintableTokensAmount(year);
+      amountRef += getYearlyMintableTokens(year);
 
       expect(
         tokensFromContract
       ).to.be.equal(
-        expectedAmount
+        amountRef,
+        year.toString()
       );
-
-      await time.increaseTo(timeOfMint - 1n);
-      timeOfMint += 1n;
-
-      const beneficiaryBalBefore = await meowToken.balanceOf(beneficiary.address);
-      await meowToken.connect(admin).mint();
-      const beneficiaryBalAfter = await meowToken.balanceOf(beneficiary.address);
-
-      minted = beneficiaryBalAfter - initialTotalSupply;
-
-      console.log(beneficiaryBalBefore);
-      console.log(beneficiaryBalAfter);
     }
   });
 
-  it("Should return correct amount of tokens, increased each 10.512.000 sec (1/3 part of year)", async () => {
+  it("should mint the correct amount of tokens per year exactly", async () => {
     let currentTime = deployTime;
+    let minted = 0n;
 
-    for (let timeInterval = 0; timeInterval < 14; timeInterval++) {
-      currentTime += 10512000n;
+    for (let year = 1; year < 10; year++) {
+      currentTime += 31536000n;
 
-      await expect(
-        await meowToken.calculateMintableTokens(currentTime) / parseEther("1")
+      await time.increaseTo(currentTime - 1n);
+
+      const beneficiaryBalBefore = await zToken.balanceOf(beneficiary.address);
+      await zToken.connect(admin).mint();
+      const beneficiaryBalAfter = await zToken.balanceOf(beneficiary.address);
+
+      minted = beneficiaryBalAfter - beneficiaryBalBefore;
+
+      expect(
+        minted
       ).to.be.equal(
-        mintableTokensEachYear[timeInterval] / 3n
+        getYearlyMintableTokens(year)
       );
     }
-  });
-
-  it("", async () => {
-    // TODO myself: deploy, wait some time (31536000 and 31535999), mint, then wait and mint again
-  });
-
-  it("", async () => {
-    let currentTime = deployTime;
-
-    currentTime += 31536000n;
-
-    await meowToken.connect(admin).mint();
-
-    // TODO myself: deploy, wait some years and then mint (like after 2y and some seconds)
-  });
-
-  it("", async () => {
-    // TODO myself: each second
-  });
-
-  it("", async () => {
-    // TODO myself: a lot of years. SHould be 1.5% inflation and a lot of tokens
-  });
-
-  it("", async () => {
-    // TODO myself: 1000000 years
   });
 });
