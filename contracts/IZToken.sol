@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import { IInflationaryToken } from "./IInflationaryToken.sol";
+import { IDynamicToken } from "./IDynamicToken.sol";
 
 
-interface IZToken is IInflationaryToken {
+interface IZToken is IDynamicToken {
     error ZeroAddressPassed();
 
     event MintBeneficiaryUpdated(address indexed newBeneficiary);

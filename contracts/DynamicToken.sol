@@ -2,7 +2,7 @@
 pragma solidity 0.8.26;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IInflationaryToken } from "./IInflationaryToken.sol";
+import { IDynamicToken } from "./IDynamicToken.sol";
 
 
 /**
@@ -17,7 +17,7 @@ import { IInflationaryToken } from "./IInflationaryToken.sol";
  * all the tokens that have not been minted since the last mint operation based on their yearly rates and time passed.
  * @author Kirill Korchagin <https://github.com/Whytecrowe>, Michael Korchagin <https://github.com/MichaelKorchagin>
  */
-abstract contract InflationaryToken is ERC20, IInflationaryToken {
+abstract contract DynamicToken is ERC20, IDynamicToken {
     /**
      * @notice Representation of 100% value in basis points for percentage based calculations.
      */
@@ -181,9 +181,20 @@ abstract contract InflationaryToken is ERC20, IInflationaryToken {
      *  and updates the last mint time to the current time.
      * @param to The address to send the minted tokens to.
      */
-    function _mintInflationary(address to) internal {
+    function _mintDynamic(address to) internal {
         uint256 totalToMint = calculateMintableTokens(block.timestamp);
         lastMintTime = block.timestamp;
         _mint(to, totalToMint);
+    }
+
+    /**
+     * @dev Overriden ERC20 function that will burn the amount of tokens transferred to this address.
+     */
+    function _update(address from, address to, uint256 value) internal override {
+        if (to == address(this)) {
+            return super._update(from, address(0), value);
+        }
+
+        return super._update(from, to, value);
     }
 }

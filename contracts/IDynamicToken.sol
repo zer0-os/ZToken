@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 
-interface IInflationaryToken is IERC20 {
+interface IDynamicToken is IERC20 {
     error InvalidTimeSupplied(uint256 lastMintTime, uint256 currentTime);
     error InvalidInflationRatesArray(uint16[] ratesPassed);
 

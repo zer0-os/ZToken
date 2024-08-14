@@ -3,10 +3,10 @@ pragma solidity 0.8.26;
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { IZToken } from "./IZToken.sol";
-import { InflationaryToken } from "./InflationaryToken.sol";
+import { DynamicToken } from "./DynamicToken.sol";
 
 
-contract ZToken is InflationaryToken, AccessControl, IZToken {
+contract ZToken is DynamicToken, AccessControl, IZToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /*** Constants ***/
@@ -36,7 +36,7 @@ contract ZToken is InflationaryToken, AccessControl, IZToken {
         address _mintBeneficiary,
         uint16[] memory _inflationRates,
         uint16 _finalInflationRate
-    ) InflationaryToken(_name, _symbol, _inflationRates, _finalInflationRate) {
+    ) DynamicToken(_name, _symbol, _inflationRates, _finalInflationRate) {
         if (
             _defaultAdmin == address(0)
             || _minter == address(0)
@@ -53,7 +53,7 @@ contract ZToken is InflationaryToken, AccessControl, IZToken {
     /**
      * @notice Returns the initial token supply at deploy time that is used in the inflation calculations.
      */
-    function baseSupply() public view override(InflationaryToken, IZToken) returns (uint256) {
+    function baseSupply() public view override(DynamicToken, IZToken) returns (uint256) {
         return INITIAL_SUPPLY_BASE * 10 ** decimals();
     }
 
@@ -61,7 +61,7 @@ contract ZToken is InflationaryToken, AccessControl, IZToken {
      * @notice Mints tokens to the `mintBeneficiary` address based on the inflation formula and rates per year.
      */
     function mint() public override onlyRole(MINTER_ROLE) {
-        _mintInflationary(mintBeneficiary);
+        _mintDynamic(mintBeneficiary);
     }
 
     /**
@@ -72,16 +72,5 @@ contract ZToken is InflationaryToken, AccessControl, IZToken {
         if (_mintBeneficiary == address(0)) revert ZeroAddressPassed();
         mintBeneficiary = _mintBeneficiary;
         emit MintBeneficiaryUpdated(_mintBeneficiary);
-    }
-
-    /**
-     * @dev Overriden ERC20 function that will burn the amount of tokens transferred to this address.
-     */
-    function _update(address from, address to, uint256 value) internal override {
-        if (to == address(this)) {
-            return super._update(from, address(0), value);
-        }
-
-        return super._update(from, to, value);
     }
 }
