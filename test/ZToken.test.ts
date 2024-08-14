@@ -41,7 +41,7 @@ describe("ZToken Test", () => {
     );
     initialTotalSupply = await zToken.baseSupply();
 
-    deployTime = await zToken.deployTime();
+    deployTime = await zToken.DEPLOY_TIME();
   });
 
   describe("Deployment", () => {
@@ -101,7 +101,7 @@ describe("ZToken Test", () => {
       const rateFromContract = await zToken2.currentInflationRate(rates.length + 2);
       expect(rateFromContract).to.eq(FINAL_INFLATION_RATE_DEFAULT);
 
-      const rateFromRates = await zToken2.YEARLY_INFLATION_RATES(3);
+      const rateFromRates = await zToken2.ANNUAL_INFLATION_RATES(3);
       expect(rateFromRates).to.eq(rates[3]);
     });
 
@@ -253,7 +253,7 @@ describe("ZToken Test", () => {
       totalSupply = await zToken.totalSupply();
 
       let timeOfMint1 = deployTime + YEAR_IN_SECONDS / 2n - 1n;
-      const inflationRate = await zToken.YEARLY_INFLATION_RATES(1);
+      const inflationRate = await zToken.ANNUAL_INFLATION_RATES(1);
       const tokensPerYearRef = totalSupply * inflationRate / 10000n;
       firstMintAmtRef = tokensPerYearRef / 2n;
 
@@ -476,7 +476,7 @@ describe("Minting scenarios on clean state.", () => {
       FINAL_INFLATION_RATE_DEFAULT,
     );
 
-    deployTime = await zToken.deployTime();
+    deployTime = await zToken.DEPLOY_TIME();
   });
 
   it("should mint the correct amount of tokens when minted every second", async () => {

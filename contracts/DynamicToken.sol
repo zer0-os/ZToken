@@ -30,7 +30,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
      * and is set only once in the constructor, so it can be considered immutable.
      * We use capitalized snake case to signify that.
      */
-    uint16[] public YEARLY_INFLATION_RATES;
+    uint16[] public ANNUAL_INFLATION_RATES;
     /**
      * @notice The final inflation rate after all the yearly rates have been applied.
      * @dev This is the last inflation rate after all the yearly rates have been applied.
@@ -43,7 +43,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     /**
      * @notice Timestamp of contract deployment. Immutable.
      */
-    uint256 public immutable deployTime;
+    uint256 public immutable DEPLOY_TIME;
     /**
      * @notice Timestamp of the last mint operation. Updated on every mint.
      */
@@ -52,17 +52,17 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     constructor(
         string memory name,
         string memory symbol,
-        uint16[] memory _inflationRates,
+        uint16[] memory _annualInflationRates,
         uint16 _finalInflationRate
     ) ERC20(name, symbol) {
-        if (_inflationRates.length == 0 || _inflationRates[0] != 0) {
-            revert InvalidInflationRatesArray(_inflationRates);
+        if (_annualInflationRates.length == 0 || _annualInflationRates[0] != 0) {
+            revert InvalidInflationRatesArray(_annualInflationRates);
         }
 
-        YEARLY_INFLATION_RATES = _inflationRates;
+        ANNUAL_INFLATION_RATES = _annualInflationRates;
         FINAL_INFLATION_RATE = _finalInflationRate;
 
-        deployTime = block.timestamp;
+        DEPLOY_TIME = block.timestamp;
         lastMintTime = block.timestamp;
     }
 
@@ -89,7 +89,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
         uint256 currentYear = yearSinceDeploy(time);
         uint256 yearOfLastMint = yearSinceDeploy(lastTime);
 
-        uint256 yearStartPoint = deployTime + yearOfLastMint * 365 days;
+        uint256 yearStartPoint = DEPLOY_TIME + yearOfLastMint * 365 days;
 
         uint256 lastYearTokens;
         // less than year passed since last mint/deploy
@@ -123,11 +123,11 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
      * @param time The time to calculate the year number for.
      */
     function yearSinceDeploy(uint256 time) public view returns (uint256) {
-        if (time < deployTime) {
-            revert InvalidTimeSupplied(deployTime, time);
+        if (time < DEPLOY_TIME) {
+            revert InvalidTimeSupplied(DEPLOY_TIME, time);
         }
 
-        return (time - deployTime) / 365 days + 1;
+        return (time - DEPLOY_TIME) / 365 days + 1;
     }
 
     /**
@@ -135,10 +135,10 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
      * @param yearIndex The index of the year to get the inflation rate for.
      */
     function currentInflationRate(uint256 yearIndex) public view returns (uint256) {
-        if (yearIndex >= YEARLY_INFLATION_RATES.length) {
+        if (yearIndex >= ANNUAL_INFLATION_RATES.length) {
             return FINAL_INFLATION_RATE;
         }
-        return YEARLY_INFLATION_RATES[yearIndex];
+        return ANNUAL_INFLATION_RATES[yearIndex];
     }
 
     /**

@@ -12,11 +12,11 @@ interface IDynamicToken is IERC20 {
 
     function lastMintTime() external view returns (uint256);
 
-    function deployTime() external view returns (uint256);
+    function DEPLOY_TIME() external view returns (uint256);
 
     function yearSinceDeploy(uint256 time) external view returns (uint256);
 
-    function YEARLY_INFLATION_RATES(uint256 index) external view returns (uint16);
+    function ANNUAL_INFLATION_RATES(uint256 index) external view returns (uint16);
 
     function FINAL_INFLATION_RATE() external view returns (uint16);
 
