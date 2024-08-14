@@ -7,6 +7,7 @@ import { IDynamicToken } from "./IDynamicToken.sol";
 
 /**
  * @title InflationaryToken
+ *
  * @notice An abstract token contract that allows for inflation of the token supply based on supplied rate schedule.
  * Rate is supplied as an array of yearly rates in basis points that start from 0 and proceed to include a percentage
  * per year where index equals the year number since deployment. To calculate mintable tokens, the contract uses
@@ -15,9 +16,12 @@ import { IDynamicToken } from "./IDynamicToken.sol";
  * Tokens can be minted at any time during the year, and all the previously unminted tokens will be included
  * in the final mint amount. The amount of tokens to mint can NOT be specified. The amount always includes
  * all the tokens that have not been minted since the last mint operation based on their yearly rates and time passed.
+ *
  * @author Kirill Korchagin <https://github.com/Whytecrowe>, Michael Korchagin <https://github.com/MichaelKorchagin>
  */
 abstract contract DynamicToken is ERC20, IDynamicToken {
+    uint256 public immutable INITIAL_SUPPLY_BASE;
+
     /**
      * @notice Representation of 100% value in basis points for percentage based calculations.
      */
@@ -26,6 +30,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     /*** Inflation Immutable Vars ***/
     /**
      * @notice Array of yearly inflation rates in basis points. Only set once during deployment.
+     *
      * @dev Since Solidity still doesn't support immutable state arrays, this is a state var with no setters,
      * and is set only once in the constructor, so it can be considered immutable.
      * We use capitalized snake case to signify that.
@@ -33,6 +38,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     uint16[] public ANNUAL_INFLATION_RATES;
     /**
      * @notice The final inflation rate after all the yearly rates have been applied.
+     *
      * @dev This is the last inflation rate after all the yearly rates have been applied.
      * It is returned when `yearIndex` goes past the length of the `YEARLY_INFLATION_RATES` array
      * and the inflation plateaus at this rate forever once reached.
@@ -52,6 +58,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     constructor(
         string memory name,
         string memory symbol,
+        uint256 _initialSupplyBase, // without the decimal part!
         uint16[] memory _annualInflationRates,
         uint16 _finalInflationRate
     ) ERC20(name, symbol) {
@@ -59,6 +66,10 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
             revert InvalidInflationRatesArray(_annualInflationRates);
         }
 
+        if (_initialSupplyBase == 0)
+            revert NoInitialSupplyProvided();
+
+        INITIAL_SUPPLY_BASE = _initialSupplyBase;
         ANNUAL_INFLATION_RATES = _annualInflationRates;
         FINAL_INFLATION_RATE = _finalInflationRate;
 
@@ -67,16 +78,20 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     }
 
     /**
-     * @dev Need to be overriden to specify a stable base supply of the token
-     *  to be used for inflation calculations, since they use an unchanging base value for every year.
+     * @notice Returns the initial token supply at deploy time that is used in the inflation calculations,
+     * since they use an unchanging base value for every year.
+     *
      *  This also represents the initial supply of the token at the time of deployment
      *  apart from the `totalSupply` which is the accumulated total supply at the time of the query.
      *  The value returned from this function SHOULD NOT include tokens minted on inflation schedule after deploy!
      */
-    function baseSupply() public view virtual returns (uint256);
+    function baseSupply() public view override returns (uint256) {
+        return INITIAL_SUPPLY_BASE * 10 ** decimals();
+    }
 
     /**
      * @notice Calculates the amount of tokens that can be minted at the current time.
+     *
      * @param time The current time to calculate mintable tokens for. `block.timestamp` is passed here when minting.
      */
     function calculateMintableTokens(uint256 time) public view returns (uint256) {
@@ -120,6 +135,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
 
     /**
      * @notice Returns the year number since deployment based on the supplied time.
+     *
      * @param time The time to calculate the year number for.
      */
     function yearSinceDeploy(uint256 time) public view returns (uint256) {
@@ -132,6 +148,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
 
     /**
      * @notice Returns the current inflation rate for the specified year index.
+     *
      * @param yearIndex The index of the year to get the inflation rate for.
      */
     function currentInflationRate(uint256 yearIndex) public view returns (uint256) {
@@ -143,6 +160,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
 
     /**
      * @notice Returns the total amount of tokens that can be minted in the specified year based on it's inflation rate.
+     *
      * @param yearIdx The index of the year to get the mintable tokens for.
      */
     function tokensPerYear(uint256 yearIdx) public view returns (uint256) {
@@ -152,6 +170,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
 
     /**
      * @notice Returns the total amount of tokens that can be minted for several years based on their inflation rates.
+     *
      * @param lastMintYearIdx The index of the year of the last mint operation or year to start calculating from.
      * @param currentYearIdx The index of the current year or year to stop calculating at.
      */
@@ -169,6 +188,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
 
     /**
      * @notice The amount of tokens that can be minted for a period in a specific year based on it's inflation rate.
+     *
      * @param yearlyTokens The total amount of tokens that can be minted in a year.
      * @param periodSeconds The length of the period in seconds to calculate the tokens for.
      */
@@ -179,6 +199,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     /**
      * @notice Mints the total amount of tokens that can be minted at the current time to the specified address
      *  and updates the last mint time to the current time.
+     *
      * @param to The address to send the minted tokens to.
      */
     function _mintDynamic(address to) internal {

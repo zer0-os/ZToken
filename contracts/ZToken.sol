@@ -9,9 +9,6 @@ import { DynamicToken } from "./DynamicToken.sol";
 contract ZToken is DynamicToken, AccessControl, IZToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    /*** Constants ***/
-    uint256 public constant INITIAL_SUPPLY_BASE = 10101010101;
-
     /*
      * @notice Address that will receive all the minted tokens. Can be updated by the ADMIN_ROLE.
      */
@@ -19,6 +16,7 @@ contract ZToken is DynamicToken, AccessControl, IZToken {
 
     /**
      * @dev Please note the param comments!
+     *
      * @param _defaultAdmin is the address that will be granted the DEFAULT_ADMIN_ROLE
      * @param _minter is the address that will be granted the MINTER_ROLE
      * @param _mintBeneficiary is the address that will receive all the minted tokens, it's state var can be reset later
@@ -34,9 +32,16 @@ contract ZToken is DynamicToken, AccessControl, IZToken {
         address _defaultAdmin,
         address _minter,
         address _mintBeneficiary,
+        uint256 _initialSupplyBase, // without the decimal part!
         uint16[] memory _inflationRates,
         uint16 _finalInflationRate
-    ) DynamicToken(_name, _symbol, _inflationRates, _finalInflationRate) {
+    ) DynamicToken(
+        _name,
+        _symbol,
+        _initialSupplyBase,
+        _inflationRates,
+        _finalInflationRate
+    ) {
         if (
             _defaultAdmin == address(0)
             || _minter == address(0)
@@ -51,13 +56,6 @@ contract ZToken is DynamicToken, AccessControl, IZToken {
     }
 
     /**
-     * @notice Returns the initial token supply at deploy time that is used in the inflation calculations.
-     */
-    function baseSupply() public view override(DynamicToken, IZToken) returns (uint256) {
-        return INITIAL_SUPPLY_BASE * 10 ** decimals();
-    }
-
-    /**
      * @notice Mints tokens to the `mintBeneficiary` address based on the inflation formula and rates per year.
      */
     function mint() public override onlyRole(MINTER_ROLE) {
@@ -66,6 +64,7 @@ contract ZToken is DynamicToken, AccessControl, IZToken {
 
     /**
      * @notice Updates the address that will receive all the minted tokens. Only ADMIN can call.
+     *
      * @param _mintBeneficiary The new address that will receive all the minted tokens
      */
     function setMintBeneficiary(address _mintBeneficiary) external override onlyRole(DEFAULT_ADMIN_ROLE) {

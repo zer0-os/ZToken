@@ -11,8 +11,6 @@ interface IZToken is IDynamicToken {
 
     function mint() external;
 
-    function baseSupply() external view returns (uint256);
-
     function setMintBeneficiary(address newBeneficiary) external;
 
     function mintBeneficiary() external view returns (address);

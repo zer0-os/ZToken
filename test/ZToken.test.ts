@@ -3,10 +3,16 @@ import { expect } from "chai";
 import { ZToken, ZToken__factory } from "../typechain/index.ts";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { AUTH_ERROR, INVALID_INFLATION_ARRAY_ERR, INVALID_TIME_ERR, ZERO_ADDRESS_ERR } from "./helpers/errors.ts";
+import {
+  AUTH_ERROR,
+  INVALID_INFLATION_ARRAY_ERR,
+  INVALID_TIME_ERR,
+  ZERO_ADDRESS_ERR,
+  ZERO_INITIAL_SUPPLY_ERR,
+} from "./helpers/errors.ts";
 import {
   FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
-  INFLATION_RATES_DEFAULT,
+  INFLATION_RATES_DEFAULT, INITIAL_SUPPLY_DEFAULT,
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
 } from "./helpers/inflation.ts";
@@ -36,6 +42,7 @@ describe("ZToken Test", () => {
       admin.address,
       admin.address,
       beneficiary.address,
+      INITIAL_SUPPLY_DEFAULT,
       INFLATION_RATES_DEFAULT,
       FINAL_INFLATION_RATE_DEFAULT,
     );
@@ -45,6 +52,24 @@ describe("ZToken Test", () => {
   });
 
   describe("Deployment", () => {
+    it("should revert if initial supply is passed as 0", async () => {
+      await expect(
+        ZTokenFactory.deploy(
+          tokenName,
+          tokenSymbol,
+          admin.address,
+          admin.address,
+          beneficiary.address,
+          0,
+          INFLATION_RATES_DEFAULT,
+          FINAL_INFLATION_RATE_DEFAULT,
+        )
+      ).to.be.revertedWithCustomError(
+        zToken,
+        ZERO_INITIAL_SUPPLY_ERR
+      );
+    });
+
     it("should revert when inflation rates array is empty", async () => {
       const inflationRatesEmpty : Array<bigint> = [];
 
@@ -55,6 +80,7 @@ describe("ZToken Test", () => {
           admin.address,
           admin.address,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           inflationRatesEmpty,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -74,6 +100,7 @@ describe("ZToken Test", () => {
           admin.address,
           admin.address,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           inflationRatesInvalid,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -94,6 +121,7 @@ describe("ZToken Test", () => {
         admin.address,
         admin.address,
         beneficiary.address,
+        INITIAL_SUPPLY_DEFAULT,
         rates,
         FINAL_INFLATION_RATE_DEFAULT,
       );
@@ -113,6 +141,7 @@ describe("ZToken Test", () => {
           hre.ethers.ZeroAddress,
           admin.address,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           INFLATION_RATES_DEFAULT,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -128,6 +157,7 @@ describe("ZToken Test", () => {
           admin.address,
           hre.ethers.ZeroAddress,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           INFLATION_RATES_DEFAULT,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -143,6 +173,7 @@ describe("ZToken Test", () => {
           admin.address,
           admin.address,
           hre.ethers.ZeroAddress,
+          INITIAL_SUPPLY_DEFAULT,
           INFLATION_RATES_DEFAULT,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -472,6 +503,7 @@ describe("Minting scenarios on clean state.", () => {
       admin.address,
       admin.address,
       beneficiary.address,
+      INITIAL_SUPPLY_DEFAULT,
       INFLATION_RATES_DEFAULT,
       FINAL_INFLATION_RATE_DEFAULT,
     );

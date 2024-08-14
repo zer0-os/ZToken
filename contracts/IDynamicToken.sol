@@ -7,6 +7,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IDynamicToken is IERC20 {
     error InvalidTimeSupplied(uint256 lastMintTime, uint256 currentTime);
     error InvalidInflationRatesArray(uint16[] ratesPassed);
+    error NoInitialSupplyProvided();
+
+    function baseSupply() external view returns (uint256);
 
     function calculateMintableTokens(uint256 currentTime) external view returns (uint256);
 
