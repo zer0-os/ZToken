@@ -6,28 +6,32 @@ import { IDynamicToken } from "./IDynamicToken.sol";
 
 
 /**
- * @title InflationaryToken
+ * @title DynamicToken
  *
  * @notice An abstract token contract that allows for inflation of the token supply based on supplied rate schedule.
  * Rate is supplied as an array of yearly rates in basis points that start from 0 and proceed to include a percentage
  * per year where index equals the year number since deployment. To calculate mintable tokens, the contract uses
  * a fixed number `baseSupply` as the base for the inflation calculations. The contract also has `FINAL_INFLATION_RATE`
  * that is applied after all the years in `YEARLY_INFLATION_RATES` have passed.
+ *
  * Tokens can be minted at any time during the year, and all the previously unminted tokens will be included
  * in the final mint amount. The amount of tokens to mint can NOT be specified. The amount always includes
  * all the tokens that have not been minted since the last mint operation based on their yearly rates and time passed.
  *
+ * This token also has a burn mechanism that allows the contract to automatically burn tokens sent to it.
  * @author Kirill Korchagin <https://github.com/Whytecrowe>, Michael Korchagin <https://github.com/MichaelKorchagin>
  */
 abstract contract DynamicToken is ERC20, IDynamicToken {
+    /**
+     * @notice The initial supply of the token at the time of deployment. This value is also used
+     * in the inflation calculations during minting.
+     */
     uint256 public immutable INITIAL_SUPPLY_BASE;
-
     /**
      * @notice Representation of 100% value in basis points for percentage based calculations.
      */
     uint256 public constant BASIS_POINTS = 10000;
 
-    /*** Inflation Immutable Vars ***/
     /**
      * @notice Array of yearly inflation rates in basis points. Only set once during deployment.
      *
@@ -43,10 +47,12 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
      * @dev This is the last inflation rate after all the yearly rates have been applied.
      * It is returned when `yearIndex` goes past the length of the `YEARLY_INFLATION_RATES` array
      * and the inflation plateaus at this rate forever once reached.
+     *
+     * Please note that this rate will never increase the amount of minted tokens annually, since
+     * a fixed value of `baseSupply()/INITIAL_SUPPLY_BASE` is used to calculate mintable tokens.
      */
     uint16 public immutable FINAL_INFLATION_RATE;
 
-    /*** Time Vars ***/
     /**
      * @notice Timestamp of contract deployment. Immutable.
      */
@@ -60,7 +66,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
         string memory name,
         string memory symbol,
         uint256 _initialSupplyBase, // without the decimal part!
-        uint16[] memory _annualInflationRates,
+        uint16[] memory _annualInflationRates, // first element should be 0!
         uint16 _finalInflationRate
     ) ERC20(name, symbol) {
         if (_annualInflationRates.length == 0 || _annualInflationRates[0] != 0) {
@@ -79,12 +85,12 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     }
 
     /**
-     * @notice Returns the initial token supply at deploy time that is used in the inflation calculations,
-     * since they use an unchanging base value for every year.
+     * @notice Returns the initial token supply at deploy time that is used in the mintable tokens calculations,
+     * since it's based on an unchanging value for every year.
      *
      *  This also represents the initial supply of the token at the time of deployment
      *  apart from the `totalSupply` which is the accumulated total supply at the time of the query.
-     *  The value returned from this function SHOULD NOT include tokens minted on inflation schedule after deploy!
+     *  The value returned from this function DOES NOT include tokens minted on inflation schedule after deploy!
      */
     function baseSupply() public view override returns (uint256) {
         return INITIAL_SUPPLY_BASE * 10 ** decimals();
@@ -137,7 +143,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
     /**
      * @notice Returns the year number since deployment based on the supplied time.
      *
-     * @param time The time to calculate the year number for.
+     * @param time The timestamp to calculate the year number for.
      */
     function yearSinceDeploy(uint256 time) public view returns (uint256) {
         if (time < DEPLOY_TIME) {
