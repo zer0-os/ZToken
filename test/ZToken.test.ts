@@ -569,4 +569,43 @@ describe("Minting scenarios on clean state.", () => {
       );
     }
   });
+
+  // eslint-disable-next-line max-len
+  it("should correctly account totalSupply and mintable tokens when burning by transfer to token contract", async () => {
+    // mint some tokens after a year and a half
+    const firstMintTime = deployTime + YEAR_IN_SECONDS / 2n - 1n;
+    await time.increaseTo(firstMintTime);
+
+    const totalSupplyBefore = await zToken.totalSupply();
+
+    await zToken.connect(admin).mint();
+
+    const totalSupplyAfter = await zToken.totalSupply();
+
+    const mintedAmtRef = getTokensPerPeriod(1, YEAR_IN_SECONDS / 2n);
+
+    expect(totalSupplyAfter - totalSupplyBefore).to.eq(mintedAmtRef);
+
+    // burn some tokens by transferring to token contract
+    const transferAmt = mintedAmtRef / 3n;
+    await zToken.connect(beneficiary).transfer(zToken.target, transferAmt);
+
+    const totalSupplyAfterBurn = await zToken.totalSupply();
+
+    expect(totalSupplyAfterBurn).to.eq(totalSupplyAfter - transferAmt);
+
+    // mint more tokens
+    const newMintPeriod = 31545n;
+    // we do not do - 1n here because previous tx already moved it by 1 second
+    const secondMintTime = firstMintTime + newMintPeriod;
+    await time.increaseTo(secondMintTime);
+
+    const totalSupplyBefore2 = await zToken.totalSupply();
+    await zToken.connect(admin).mint();
+    const totalSupplyAfter2 = await zToken.totalSupply();
+
+    const mintedAmtRef2 = getTokensPerPeriod(1, newMintPeriod);
+
+    expect(totalSupplyAfter2 - totalSupplyBefore2).to.eq(mintedAmtRef2);
+  });
 });
