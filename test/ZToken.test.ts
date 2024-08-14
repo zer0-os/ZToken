@@ -51,7 +51,7 @@ describe("ZToken Test", () => {
     deployTime = await zToken.DEPLOY_TIME();
   });
 
-  describe("Deployment", () => {
+  describe("Deployment and Access Control", () => {
     it("should revert if initial supply is passed as 0", async () => {
       await expect(
         ZTokenFactory.deploy(
@@ -196,11 +196,50 @@ describe("ZToken Test", () => {
       expect(await zToken.hasRole(await zToken.DEFAULT_ADMIN_ROLE(), randomAcc.address)).to.be.false;
     });
 
-    it("Fails when an address that does not have the MINTER_ROLE tries to mint", async () => {
+    it("should fail when an address that does not have the MINTER_ROLE tries to mint", async () => {
       await expect(
         zToken.connect(beneficiary).mint()
       ).to.be.revertedWithCustomError(zToken, AUTH_ERROR)
         .withArgs(beneficiary.address, hre.ethers.solidityPackedKeccak256(["string"], ["MINTER_ROLE"]));
+    });
+
+    it("should be able to reassign the minter role to another address", async () => {
+      const minterRole = await zToken.MINTER_ROLE();
+
+      expect(await zToken.hasRole(minterRole, beneficiary.address)).to.be.false;
+
+      await zToken.connect(admin).grantRole(minterRole, beneficiary.address);
+
+      expect(await zToken.hasRole(minterRole, admin.address)).to.be.true;
+      expect(await zToken.hasRole(minterRole, beneficiary.address)).to.be.true;
+
+      await zToken.connect(admin).revokeRole(minterRole, admin.address);
+
+      expect(await zToken.hasRole(minterRole, admin.address)).to.be.false;
+
+      // assign back
+      await zToken.connect(admin).grantRole(minterRole, admin.address);
+
+      expect(await zToken.hasRole(minterRole, admin.address)).to.be.true;
+    });
+
+    it("should be able to reassign DEFAULT_ADMIN_ROLE to another address", async () => {
+      const adminRole = await zToken.DEFAULT_ADMIN_ROLE();
+      expect(await zToken.hasRole(adminRole, beneficiary.address)).to.be.false;
+
+      await zToken.connect(admin).grantRole(adminRole, beneficiary.address);
+
+      expect(await zToken.hasRole(adminRole, admin.address)).to.be.true;
+      expect(await zToken.hasRole(adminRole, beneficiary.address)).to.be.true;
+
+      await zToken.connect(admin).revokeRole(adminRole, admin.address);
+
+      expect(await zToken.hasRole(adminRole, admin.address)).to.be.false;
+
+      // assign back
+      await zToken.connect(beneficiary).grantRole(adminRole, admin.address);
+
+      expect(await zToken.hasRole(adminRole, admin.address)).to.be.true;
     });
   });
 
