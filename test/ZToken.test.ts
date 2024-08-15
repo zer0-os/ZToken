@@ -13,8 +13,9 @@ import {
 import {
   FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
   INFLATION_RATES_DEFAULT, INITIAL_SUPPLY_DEFAULT,
-  MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
+  getMintableTokensForYear,
   YEAR_IN_SECONDS,
+  FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
 } from "./helpers/inflation.ts";
 
 
@@ -31,6 +32,9 @@ describe("ZToken Test", () => {
 
   let deployTime : bigint;
   let initialTotalSupply : bigint;
+
+  const a = getMintableTokensForYear(99999);
+  console.log(a);
 
   before(async () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
@@ -306,7 +310,7 @@ describe("ZToken Test", () => {
 
       expect(tokensPerYear).to.eq(tokensPerYearRef);
 
-      const fixedFinalRateAmtRef = 151515151515000000000000000n;
+      const fixedFinalRateAmtRef = FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT;
 
       tokensPerYear = await zToken.tokensPerYear(INFLATION_RATES_DEFAULT.length + 1);
       expect(tokensPerYear).to.eq(fixedFinalRateAmtRef);
@@ -389,7 +393,7 @@ describe("ZToken Test", () => {
       await zToken.connect(admin).mint();
       const balanceAfter1 = await zToken.balanceOf(beneficiary.address);
 
-      const fullYear3 = MINTABLE_YEARLY_TOKENS_REF_DEFAULT[3];
+      const fullYear3 = getMintableTokensForYear(3);
       const closeoutRefAmt = (YEAR_IN_SECONDS - year3Period - 1n) * fullYear3 / YEAR_IN_SECONDS;
       expect(balanceAfter1 - balanceBefore1).to.eq(closeoutRefAmt);
 
@@ -412,7 +416,7 @@ describe("ZToken Test", () => {
           const balanceAfter = await zToken.balanceOf(beneficiary.address);
           timeOfMint = BigInt(await time.latest());
 
-          const yearly = MINTABLE_YEARLY_TOKENS_REF_DEFAULT[4];
+          const yearly = getMintableTokensForYear(4);
           const periodAmtRef = yearly * (period + 1n) / YEAR_IN_SECONDS;
 
           expect(balanceAfter - balanceBefore).to.eq(periodAmtRef, idx.toString());
@@ -432,7 +436,7 @@ describe("ZToken Test", () => {
 
       let tokenAmountRef = getTokensPerPeriod(4, YEAR_IN_SECONDS - (year4Period + 3n));
       for (let year = 5; year < 12; year++) {
-        tokenAmountRef += MINTABLE_YEARLY_TOKENS_REF_DEFAULT[year];
+        tokenAmountRef += getMintableTokensForYear(year);
       }
 
       tokenAmountRef += getTokensPerPeriod(12, year12Period);
