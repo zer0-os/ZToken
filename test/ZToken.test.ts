@@ -3,12 +3,19 @@ import { expect } from "chai";
 import { ZToken, ZToken__factory } from "../typechain/index.ts";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { AUTH_ERROR, INVALID_INFLATION_ARRAY_ERR, INVALID_TIME_ERR, ZERO_ADDRESS_ERR } from "./helpers/errors.ts";
+import {
+  AUTH_ERROR,
+  INVALID_INFLATION_ARRAY_ERR,
+  INVALID_TIME_ERR,
+  ZERO_ADDRESS_ERR,
+  ZERO_INITIAL_SUPPLY_ERR,
+} from "./helpers/errors.ts";
 import {
   FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
-  INFLATION_RATES_DEFAULT,
-  MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
+  INFLATION_RATES_DEFAULT, INITIAL_SUPPLY_DEFAULT,
+  getMintableTokensForYear,
   YEAR_IN_SECONDS,
+  FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
 } from "./helpers/inflation.ts";
 
 
@@ -16,7 +23,7 @@ const tokenName = "Z";
 const tokenSymbol = "Z";
 
 
-describe("MeowToken Test", () => {
+describe("ZToken Test", () => {
   let zToken : ZToken;
   let admin : SignerWithAddress;
   let beneficiary : SignerWithAddress;
@@ -25,6 +32,9 @@ describe("MeowToken Test", () => {
 
   let deployTime : bigint;
   let initialTotalSupply : bigint;
+
+  const a = getMintableTokensForYear(99999);
+  console.log(a);
 
   before(async () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
@@ -36,15 +46,39 @@ describe("MeowToken Test", () => {
       admin.address,
       admin.address,
       beneficiary.address,
+      INITIAL_SUPPLY_DEFAULT,
       INFLATION_RATES_DEFAULT,
       FINAL_INFLATION_RATE_DEFAULT,
     );
     initialTotalSupply = await zToken.baseSupply();
 
-    deployTime = await zToken.deployTime();
+    deployTime = await zToken.DEPLOY_TIME();
   });
 
-  describe("Deployment", () => {
+  describe("Deployment and Access Control", () => {
+    it("should mint the provided initial supply to the beneficiary address upon deployment", async () => {
+      const beneficiaryBal = await zToken.balanceOf(beneficiary.address);
+      expect(beneficiaryBal).to.eq(hre.ethers.parseEther(INITIAL_SUPPLY_DEFAULT.toString()));
+    });
+
+    it("should revert if initial supply is passed as 0", async () => {
+      await expect(
+        ZTokenFactory.deploy(
+          tokenName,
+          tokenSymbol,
+          admin.address,
+          admin.address,
+          beneficiary.address,
+          0,
+          INFLATION_RATES_DEFAULT,
+          FINAL_INFLATION_RATE_DEFAULT,
+        )
+      ).to.be.revertedWithCustomError(
+        zToken,
+        ZERO_INITIAL_SUPPLY_ERR
+      );
+    });
+
     it("should revert when inflation rates array is empty", async () => {
       const inflationRatesEmpty : Array<bigint> = [];
 
@@ -55,6 +89,7 @@ describe("MeowToken Test", () => {
           admin.address,
           admin.address,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           inflationRatesEmpty,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -74,6 +109,7 @@ describe("MeowToken Test", () => {
           admin.address,
           admin.address,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           inflationRatesInvalid,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -88,20 +124,21 @@ describe("MeowToken Test", () => {
         0n, 1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n, 12n, 13n, 14n, 15n, 16n, 17n, 18n, 19n, 20n,
       ];
 
-      const meowToken2 = await ZTokenFactory.deploy(
+      const zToken2 = await ZTokenFactory.deploy(
         tokenName,
         tokenSymbol,
         admin.address,
         admin.address,
         beneficiary.address,
+        INITIAL_SUPPLY_DEFAULT,
         rates,
         FINAL_INFLATION_RATE_DEFAULT,
       );
 
-      const rateFromContract = await meowToken2.currentInflationRate(rates.length + 2);
+      const rateFromContract = await zToken2.currentInflationRate(rates.length + 2);
       expect(rateFromContract).to.eq(FINAL_INFLATION_RATE_DEFAULT);
 
-      const rateFromRates = await meowToken2.YEARLY_INFLATION_RATES(3);
+      const rateFromRates = await zToken2.ANNUAL_INFLATION_RATES(3);
       expect(rateFromRates).to.eq(rates[3]);
     });
 
@@ -113,6 +150,7 @@ describe("MeowToken Test", () => {
           hre.ethers.ZeroAddress,
           admin.address,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           INFLATION_RATES_DEFAULT,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -128,6 +166,7 @@ describe("MeowToken Test", () => {
           admin.address,
           hre.ethers.ZeroAddress,
           beneficiary.address,
+          INITIAL_SUPPLY_DEFAULT,
           INFLATION_RATES_DEFAULT,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -143,6 +182,7 @@ describe("MeowToken Test", () => {
           admin.address,
           admin.address,
           hre.ethers.ZeroAddress,
+          INITIAL_SUPPLY_DEFAULT,
           INFLATION_RATES_DEFAULT,
           FINAL_INFLATION_RATE_DEFAULT,
         )
@@ -165,11 +205,50 @@ describe("MeowToken Test", () => {
       expect(await zToken.hasRole(await zToken.DEFAULT_ADMIN_ROLE(), randomAcc.address)).to.be.false;
     });
 
-    it("Fails when an address that does not have the MINTER_ROLE tries to mint", async () => {
+    it("should fail when an address that does not have the MINTER_ROLE tries to mint", async () => {
       await expect(
         zToken.connect(beneficiary).mint()
       ).to.be.revertedWithCustomError(zToken, AUTH_ERROR)
         .withArgs(beneficiary.address, hre.ethers.solidityPackedKeccak256(["string"], ["MINTER_ROLE"]));
+    });
+
+    it("should be able to reassign the minter role to another address", async () => {
+      const minterRole = await zToken.MINTER_ROLE();
+
+      expect(await zToken.hasRole(minterRole, beneficiary.address)).to.be.false;
+
+      await zToken.connect(admin).grantRole(minterRole, beneficiary.address);
+
+      expect(await zToken.hasRole(minterRole, admin.address)).to.be.true;
+      expect(await zToken.hasRole(minterRole, beneficiary.address)).to.be.true;
+
+      await zToken.connect(admin).revokeRole(minterRole, admin.address);
+
+      expect(await zToken.hasRole(minterRole, admin.address)).to.be.false;
+
+      // assign back
+      await zToken.connect(admin).grantRole(minterRole, admin.address);
+
+      expect(await zToken.hasRole(minterRole, admin.address)).to.be.true;
+    });
+
+    it("should be able to reassign DEFAULT_ADMIN_ROLE to another address", async () => {
+      const adminRole = await zToken.DEFAULT_ADMIN_ROLE();
+      expect(await zToken.hasRole(adminRole, beneficiary.address)).to.be.false;
+
+      await zToken.connect(admin).grantRole(adminRole, beneficiary.address);
+
+      expect(await zToken.hasRole(adminRole, admin.address)).to.be.true;
+      expect(await zToken.hasRole(adminRole, beneficiary.address)).to.be.true;
+
+      await zToken.connect(admin).revokeRole(adminRole, admin.address);
+
+      expect(await zToken.hasRole(adminRole, admin.address)).to.be.false;
+
+      // assign back
+      await zToken.connect(beneficiary).grantRole(adminRole, admin.address);
+
+      expect(await zToken.hasRole(adminRole, admin.address)).to.be.true;
     });
   });
 
@@ -231,7 +310,7 @@ describe("MeowToken Test", () => {
 
       expect(tokensPerYear).to.eq(tokensPerYearRef);
 
-      const fixedFinalRateAmtRef = 151515151515000000000000000n;
+      const fixedFinalRateAmtRef = FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT;
 
       tokensPerYear = await zToken.tokensPerYear(INFLATION_RATES_DEFAULT.length + 1);
       expect(tokensPerYear).to.eq(fixedFinalRateAmtRef);
@@ -253,7 +332,7 @@ describe("MeowToken Test", () => {
       totalSupply = await zToken.totalSupply();
 
       let timeOfMint1 = deployTime + YEAR_IN_SECONDS / 2n - 1n;
-      const inflationRate = await zToken.YEARLY_INFLATION_RATES(1);
+      const inflationRate = await zToken.ANNUAL_INFLATION_RATES(1);
       const tokensPerYearRef = totalSupply * inflationRate / 10000n;
       firstMintAmtRef = tokensPerYearRef / 2n;
 
@@ -314,7 +393,7 @@ describe("MeowToken Test", () => {
       await zToken.connect(admin).mint();
       const balanceAfter1 = await zToken.balanceOf(beneficiary.address);
 
-      const fullYear3 = MINTABLE_YEARLY_TOKENS_REF_DEFAULT[3];
+      const fullYear3 = getMintableTokensForYear(3);
       const closeoutRefAmt = (YEAR_IN_SECONDS - year3Period - 1n) * fullYear3 / YEAR_IN_SECONDS;
       expect(balanceAfter1 - balanceBefore1).to.eq(closeoutRefAmt);
 
@@ -337,7 +416,7 @@ describe("MeowToken Test", () => {
           const balanceAfter = await zToken.balanceOf(beneficiary.address);
           timeOfMint = BigInt(await time.latest());
 
-          const yearly = MINTABLE_YEARLY_TOKENS_REF_DEFAULT[4];
+          const yearly = getMintableTokensForYear(4);
           const periodAmtRef = yearly * (period + 1n) / YEAR_IN_SECONDS;
 
           expect(balanceAfter - balanceBefore).to.eq(periodAmtRef, idx.toString());
@@ -357,7 +436,7 @@ describe("MeowToken Test", () => {
 
       let tokenAmountRef = getTokensPerPeriod(4, YEAR_IN_SECONDS - (year4Period + 3n));
       for (let year = 5; year < 12; year++) {
-        tokenAmountRef += MINTABLE_YEARLY_TOKENS_REF_DEFAULT[year];
+        tokenAmountRef += getMintableTokensForYear(year);
       }
 
       tokenAmountRef += getTokensPerPeriod(12, year12Period);
@@ -472,11 +551,12 @@ describe("Minting scenarios on clean state.", () => {
       admin.address,
       admin.address,
       beneficiary.address,
+      INITIAL_SUPPLY_DEFAULT,
       INFLATION_RATES_DEFAULT,
       FINAL_INFLATION_RATE_DEFAULT,
     );
 
-    deployTime = await zToken.deployTime();
+    deployTime = await zToken.DEPLOY_TIME();
   });
 
   it("should mint the correct amount of tokens when minted every second", async () => {
@@ -536,5 +616,44 @@ describe("Minting scenarios on clean state.", () => {
         getYearlyMintableTokens(year)
       );
     }
+  });
+
+  // eslint-disable-next-line max-len
+  it("should correctly account totalSupply and mintable tokens when burning by transfer to token contract", async () => {
+    // mint some tokens after a year and a half
+    const firstMintTime = deployTime + YEAR_IN_SECONDS / 2n - 1n;
+    await time.increaseTo(firstMintTime);
+
+    const totalSupplyBefore = await zToken.totalSupply();
+
+    await zToken.connect(admin).mint();
+
+    const totalSupplyAfter = await zToken.totalSupply();
+
+    const mintedAmtRef = getTokensPerPeriod(1, YEAR_IN_SECONDS / 2n);
+
+    expect(totalSupplyAfter - totalSupplyBefore).to.eq(mintedAmtRef);
+
+    // burn some tokens by transferring to token contract
+    const transferAmt = mintedAmtRef / 3n;
+    await zToken.connect(beneficiary).transfer(zToken.target, transferAmt);
+
+    const totalSupplyAfterBurn = await zToken.totalSupply();
+
+    expect(totalSupplyAfterBurn).to.eq(totalSupplyAfter - transferAmt);
+
+    // mint more tokens
+    const newMintPeriod = 31545n;
+    // we do not do - 1n here because previous tx already moved it by 1 second
+    const secondMintTime = firstMintTime + newMintPeriod;
+    await time.increaseTo(secondMintTime);
+
+    const totalSupplyBefore2 = await zToken.totalSupply();
+    await zToken.connect(admin).mint();
+    const totalSupplyAfter2 = await zToken.totalSupply();
+
+    const mintedAmtRef2 = getTokensPerPeriod(1, newMintPeriod);
+
+    expect(totalSupplyAfter2 - totalSupplyBefore2).to.eq(mintedAmtRef2);
   });
 });
