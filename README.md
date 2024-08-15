@@ -1,2 +1,2 @@
-# meow-tokens
-Solidity token contracts used by Zer0 and Meowchain
+#ZToken
+Solidity token contracts used by ZERO.

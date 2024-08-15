@@ -1,15 +1,14 @@
 {
-  "name": "@zero-tech/meow-tokens",
-  "version": "0.0.1",
-  "description": "Solidity token contracts",
-  "main": "index.js",
+  "name": "@zero-tech/z-token",
+  "version": "1.0.0",
+  "description": "ZERO token contracts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zer0-os/meow-tokens.git"
+    "url": "git+https://github.com/zer0-os/ZToken.git"
   },
   "author": "Zero CPT",
   "license": "MIT",
-  "homepage": "https://github.com/zer0-os/meow-tokens#readme",
+  "homepage": "https://github.com/zer0-os/ZToken#readme",
   "engines": {
     "node": ">=18",
     "npm": ">=10"
