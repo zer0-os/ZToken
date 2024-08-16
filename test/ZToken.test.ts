@@ -33,9 +33,6 @@ describe("ZToken Test", () => {
   let deployTime : bigint;
   let initialTotalSupply : bigint;
 
-  const a = getMintableTokensForYear(99999);
-  console.log(a);
-
   before(async () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
@@ -117,6 +114,75 @@ describe("ZToken Test", () => {
         zToken,
         INVALID_INFLATION_ARRAY_ERR
       ).withArgs(inflationRatesInvalid);
+    });
+
+    it("Should return 0 each year if INLFATION RATES passed as zeros", async () => {
+      const inflationRatesInvalid = [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
+
+      const token = await ZTokenFactory.deploy(
+        tokenName,
+        tokenSymbol,
+        admin.address,
+        admin.address,
+        beneficiary.address,
+        INITIAL_SUPPLY_DEFAULT,
+        inflationRatesInvalid,
+        FINAL_INFLATION_RATE_DEFAULT,
+      );
+
+      let time = deployTime;
+
+      // From 1 `year` to `inflationRatesInvalid.length` - 1 cause first rate is 0n,
+      // and last rate should be 1.5%
+      for (let year = 1; year < inflationRatesInvalid.length; year++) {
+        time += 31536000n;
+
+        expect(
+          await token.calculateMintableTokens(time)
+        ).to.be.equal(
+          0n
+        );
+      }
+    });
+
+    it("Should return 0 tokens in 13 year if FINAL INLFATION RATE is passed as 0n", async () => {
+      const finalRate = 0n;
+
+      const token = await ZTokenFactory.deploy(
+        tokenName,
+        tokenSymbol,
+        admin.address,
+        admin.address,
+        beneficiary.address,
+        INITIAL_SUPPLY_DEFAULT,
+        INFLATION_RATES_DEFAULT,
+        finalRate,
+      );
+
+      const time = deployTime + 31536000n * 13n;
+
+      const mintAmount = await token.calculateMintableTokens(time);
+
+      let sum = 0n;
+      for (let year = 1; year <= INFLATION_RATES_DEFAULT.length; year++) {
+        sum += await token.tokensPerYear(year);
+      }
+
+      const rate = await token.currentInflationRate(
+        (time - deployTime) / 31536000n
+      );
+
+      expect(
+        mintAmount
+      ).to.be.equal(
+        sum
+      );
+
+      expect(
+        rate
+      ).to.be.equal(
+        0n
+      );
     });
 
     it("should deploy with infation rates array of any length and return final rate correctly", async () => {
