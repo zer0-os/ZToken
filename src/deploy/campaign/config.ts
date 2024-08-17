@@ -1,3 +1,4 @@
+import * as hre from "hardhat";
 
 export const getZTokenCampaignConfig = () => {
   //   zTokenName,
@@ -36,4 +37,14 @@ export const getZTokenCampaignConfig = () => {
 
   if (envVars.FINAL_INFLATION_RATE === "0")
     throw new Error("FINAL_INFLATION_RATE cannot be 0!");
+
+  if (
+    envVars.TOKEN_ADMIN_ADDRESS ||
+    envVars.TOKEN_MINTER_ADDRESS ||
+    envVars.TOKEN_MINT_BENEFICIARY_ADDRESS === hre.ethers.ZeroAddress
+  ) throw new Error("Address cannot be 0x0!");
+
+  return {
+    envVars,
+  };
 };
