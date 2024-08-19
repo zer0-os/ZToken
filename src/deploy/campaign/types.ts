@@ -9,6 +9,7 @@ export interface IZTokenCampaignConfig extends IDeployCampaignConfig<SignerWithA
   tokenAdminAddress : string;
   minterAddress : string;
   mintBeneficiaryAddress : string;
+  initialTotalSupply : bigint;
   annualInflationRates : Array<bigint>;
   finalInflationRate : bigint;
 }

@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-var-requires, @typescript-eslint/no-unused-vars */
+import { TASK_TEST_RUN_MOCHA_TESTS } from "hardhat/builtin-tasks/task-names";
+
 require("dotenv").config();
 
 import "@nomicfoundation/hardhat-toolbox";
@@ -7,8 +9,18 @@ import "@nomicfoundation/hardhat-verify";
 import "@nomicfoundation/hardhat-toolbox/network-helpers";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "solidity-coverage";
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, subtask } from "hardhat/config";
+import { mochaGlobalSetup, mochaGlobalTeardown } from "./test/mongo-global";
 
+
+subtask(TASK_TEST_RUN_MOCHA_TESTS)
+  .setAction(async (args, hre, runSuper) => {
+    await mochaGlobalSetup();
+    const testFailures = await runSuper(args);
+    await mochaGlobalTeardown();
+
+    return testFailures;
+  });
 
 const config : HardhatUserConfig = {
   solidity: {
