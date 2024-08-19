@@ -18,6 +18,10 @@ IZTokenContracts
   contractName = zTokenNames.zToken.contract;
   instanceName = zTokenNames.zToken.instance;
 
+  get dbName () : string {
+    return this.campaign.config.zTokenSymbol;
+  }
+
   async deployArgs () : Promise<TDeployArgs> {
     const {
       zTokenName,
@@ -25,6 +29,7 @@ IZTokenContracts
       tokenAdminAddress,
       minterAddress,
       mintBeneficiaryAddress,
+      initialTotalSupply,
       annualInflationRates,
       finalInflationRate,
     } = this.campaign.config;
@@ -35,6 +40,7 @@ IZTokenContracts
       tokenAdminAddress,
       minterAddress,
       mintBeneficiaryAddress,
+      initialTotalSupply,
       annualInflationRates,
       finalInflationRate,
     ];
