@@ -11,8 +11,11 @@ import {
   ZERO_INITIAL_SUPPLY_ERR,
 } from "./helpers/errors";
 import {
-  FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
-  INFLATION_RATES_DEFAULT, INITIAL_SUPPLY_DEFAULT,
+  FINAL_INFLATION_RATE_DEFAULT,
+  getTokensPerPeriod,
+  getYearlyMintableTokens,
+  INFLATION_RATES_DEFAULT,
+  INITIAL_SUPPLY_DEFAULT,
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
 } from "./helpers/inflation";
@@ -35,6 +38,8 @@ describe("ZToken Test", () => {
 
   before(async () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
+
+    ZTokenFactory = await hre.ethers.getContractFactory("ZToken");
 
     const config = {
       env: "dev",
