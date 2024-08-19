@@ -16,6 +16,7 @@ import {
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
 } from "./helpers/inflation";
+import { runZTokenCampaign } from "../src/deploy/campaign/campaign";
 
 
 const tokenName = "Z";
@@ -35,17 +36,31 @@ describe("ZToken Test", () => {
   before(async () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
-    ZTokenFactory = await hre.ethers.getContractFactory("ZToken");
-    zToken = await ZTokenFactory.deploy(
-      tokenName,
-      tokenSymbol,
-      admin.address,
-      admin.address,
-      beneficiary.address,
-      INITIAL_SUPPLY_DEFAULT,
-      INFLATION_RATES_DEFAULT,
-      FINAL_INFLATION_RATE_DEFAULT,
-    );
+    const config = {
+      env: "dev",
+      deployAdmin: admin,
+      zTokenName: tokenName,
+      zTokenSymbol: tokenSymbol,
+      tokenAdminAddress: admin.address,
+      minterAddress: admin.address,
+      mintBeneficiaryAddress: beneficiary.address,
+      initialTotalSupply: INITIAL_SUPPLY_DEFAULT,
+      annualInflationRates: INFLATION_RATES_DEFAULT,
+      finalInflationRate: FINAL_INFLATION_RATE_DEFAULT,
+      postDeploy: {
+        verifyContracts: false,
+        tenderlyProjectSlug: "",
+        monitorContracts: false,
+      },
+    };
+
+    const campaign = await runZTokenCampaign({
+      deployAdmin: admin,
+      config,
+    });
+
+    ({ zToken } = campaign);
+
     initialTotalSupply = await zToken.baseSupply();
 
     deployTime = await zToken.DEPLOY_TIME();
