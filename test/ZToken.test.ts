@@ -72,6 +72,11 @@ describe("ZToken Test", () => {
   });
 
   describe("Deployment and Access Control", () => {
+    it("should mint the provided initial supply to the beneficiary address upon deployment", async () => {
+      const beneficiaryBal = await zToken.balanceOf(beneficiary.address);
+      expect(beneficiaryBal).to.eq(hre.ethers.parseEther(INITIAL_SUPPLY_DEFAULT.toString()));
+    });
+
     it("should revert if initial supply is passed as 0", async () => {
       await expect(
         ZTokenFactory.deploy(
