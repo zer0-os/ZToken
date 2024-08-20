@@ -29,7 +29,7 @@ export const getZTokenCampaignConfig = ({
     TOKEN_ADMIN_ADDRESS: process.env.TOKEN_ADMIN_ADDRESS,
     TOKEN_MINTER_ADDRESS: process.env.TOKEN_MINTER_ADDRESS,
     TOKEN_MINT_BENEFICIARY_ADDRESS: process.env.TOKEN_MINT_BENEFICIARY_ADDRESS,
-    INITIAL_TOTAL_SUPPLY: process.env.INITIAL_TOTAL_SUPPLY,
+    INITIAL_TOKEN_SUPPLY: process.env.INITIAL_TOKEN_SUPPLY,
     ANNUAL_INFLATION_RATES: process.env.ANNUAL_INFLATION_RATES,
     FINAL_INFLATION_RATE: process.env.FINAL_INFLATION_RATE,
     MONGO_DB_URI: process.env.MONGO_DB_URI,
@@ -75,7 +75,11 @@ export const getZTokenCampaignConfig = ({
     }
   );
 
-  const config = {
+  const initialTotalSupply = BigInt(envVars.INITIAL_TOKEN_SUPPLY!);
+  if (initialTotalSupply <= 0n)
+    throw new Error("INITIAL_TOKEN_SUPPLY has to be greater than 0!");
+
+  const config : IZTokenCampaignConfig = {
     env: envLevel,
     deployAdmin,
     zTokenName: envVars.Z_TOKEN_NAME!,
@@ -83,7 +87,7 @@ export const getZTokenCampaignConfig = ({
     tokenAdminAddress: envVars.TOKEN_ADMIN_ADDRESS!,
     minterAddress: envVars.TOKEN_MINTER_ADDRESS!,
     mintBeneficiaryAddress: envVars.TOKEN_MINT_BENEFICIARY_ADDRESS!,
-    initialTotalSupply: envVars.INITIAL_TOTAL_SUPPLY!,
+    initialTotalSupply,
     annualInflationRates,
     finalInflationRate,
     postDeploy: {
