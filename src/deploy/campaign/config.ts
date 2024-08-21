@@ -39,7 +39,7 @@ export const getZTokenCampaignConfig = ({
     VERIFY_CONTRACTS: process.env.VERIFY_CONTRACTS,
   };
 
-  if (env !== "dev") {
+  if (envLevel !== "dev") {
     Object.entries(envVars).forEach(
       ([key, value]) => {
         if (!value) {
@@ -64,7 +64,7 @@ export const getZTokenCampaignConfig = ({
   if (annualInflationRates.length === 0)
     throw new Error("ANNUAL_INFLATION_RATES array is empty!");
 
-  if (annualInflationRates[0] === 0n)
+  if (annualInflationRates[0] !== 0n)
     throw new Error("ANNUAL_INFLATION_RATES array is invalid! First element has to be 0!");
 
   const finalInflationRate = BigInt(envVars.FINAL_INFLATION_RATE!);
