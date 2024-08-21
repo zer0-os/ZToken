@@ -24,7 +24,7 @@ import {
   getTokensPerPeriod,
   getYearlyMintableTokens,
   getMintableTokensForYear,
-} from "./helpers/calculates.ts";
+} from "./helpers/inflation.ts";
 
 
 const tokenName = "Z";
