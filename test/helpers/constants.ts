@@ -1,3 +1,5 @@
+import * as hre from "hardhat";
+
 export const ADMIN_DELAY_DEFAULT = 259200n; // 3 days
 
 export const YEAR_IN_SECONDS = 31536000n;
@@ -11,7 +13,7 @@ export const getMintableTokensForYear = (year : number) : bigint => {
     ? INFLATION_RATES_DEFAULT[year]
     : FINAL_INFLATION_RATE_DEFAULT;
 
-  return INITIAL_SUPPLY_DEFAULT * 10n**18n * inflationRate / 10000n;
+  return hre.ethers.parseEther(INITIAL_SUPPLY_DEFAULT.toString()) * inflationRate / 10000n;
 };
 
 export const FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT = 5535000000000000000000000n;
