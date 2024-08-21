@@ -88,6 +88,7 @@ export const getZTokenCampaignConfig = ({
     tokenAdminAddress: envVars.TOKEN_ADMIN_ADDRESS!,
     minterAddress: envVars.TOKEN_MINTER_ADDRESS!,
     mintBeneficiaryAddress: envVars.TOKEN_MINT_BENEFICIARY_ADDRESS!,
+    initialAdminDelay: BigInt(envVars.INITIAL_ADMIN_DELAY!),
     initialTotalSupply,
     annualInflationRates,
     finalInflationRate,
