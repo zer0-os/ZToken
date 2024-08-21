@@ -1,3 +1,5 @@
+export const ADMIN_DELAY_DEFAULT = 259200n; // 3 days
+
 export const YEAR_IN_SECONDS = 31536000n;
 export const INITIAL_SUPPLY_DEFAULT = 369000000n;
 export const INFLATION_RATES_DEFAULT = [0n, 900n, 765n, 650n, 552n, 469n, 398n, 338n, 287n, 243n, 206n, 175n];
