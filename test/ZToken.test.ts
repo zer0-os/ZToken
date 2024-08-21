@@ -16,6 +16,7 @@ import {
   getMintableTokensForYear,
   YEAR_IN_SECONDS,
   ADMIN_DELAY_DEFAULT,
+  FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
 } from "./helpers/constants.ts";
 
 
@@ -127,6 +128,7 @@ describe("ZToken Test", () => {
         tokenName,
         tokenSymbol,
         admin.address,
+        ADMIN_DELAY_DEFAULT,
         admin.address,
         beneficiary.address,
         INITIAL_SUPPLY_DEFAULT,
@@ -156,6 +158,7 @@ describe("ZToken Test", () => {
         tokenName,
         tokenSymbol,
         admin.address,
+        ADMIN_DELAY_DEFAULT,
         admin.address,
         beneficiary.address,
         INITIAL_SUPPLY_DEFAULT,
@@ -168,8 +171,9 @@ describe("ZToken Test", () => {
       const mintAmount = await token.calculateMintableTokens(time);
 
       let sum = 0n;
-      for (let year = 1; year <= INFLATION_RATES_DEFAULT.length; year++) {
-        sum += await token.tokensPerYear(year);
+      for (let year = 1; year < INFLATION_RATES_DEFAULT.length; year++) {
+        sum += hre.ethers.parseEther(INITIAL_SUPPLY_DEFAULT.toString()) *
+        INFLATION_RATES_DEFAULT[year] / 10000n;
       }
 
       const rate = await token.currentInflationRate(
