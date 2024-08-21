@@ -4,3 +4,4 @@ export const INVALID_TIME_ERR = "InvalidTimeSupplied";
 export const ZERO_ADDRESS_ERR = "ZeroAddressPassed";
 export const AUTH_ERROR = "AccessControlUnauthorizedAccount";
 export const ZERO_INITIAL_SUPPLY_ERR = "NoInitialSupplyProvided";
+export const INVALID_DEFAULT_ADMIN_ERR = "AccessControlInvalidDefaultAdmin";
