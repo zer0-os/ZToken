@@ -19,7 +19,7 @@ import {
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
   ADMIN_DELAY_DEFAULT,
-} from "./helpers/inflation";
+} from "./helpers/constants";
 import { runZTokenCampaign } from "../src/deploy/campaign/campaign";
 
 
@@ -50,6 +50,7 @@ describe("ZToken Test", () => {
       tokenAdminAddress: admin.address,
       minterAddress: admin.address,
       mintBeneficiaryAddress: beneficiary.address,
+      initialAdminDelay: ADMIN_DELAY_DEFAULT,
       initialTotalSupply: INITIAL_SUPPLY_DEFAULT,
       annualInflationRates: INFLATION_RATES_DEFAULT,
       finalInflationRate: FINAL_INFLATION_RATE_DEFAULT,
@@ -533,7 +534,7 @@ describe("ZToken Test", () => {
       // previous 12th year leftoved
       let tokenAmountRef = getTokensPerPeriod(33, YEAR_IN_SECONDS - year12Period);
       // full years passed
-      // all of the years will have the same amount minted, because we start after the plateau, so rate is always 1.5%
+      // all the years will have the same amount minted, because we start after the plateau, so rate is always 1.5%
       tokenAmountRef += getYearlyMintableTokens(13) * 20n; // 13th to 32nd year
       // 33rd year period
       tokenAmountRef += getTokensPerPeriod(33, newYearPeriod);
@@ -612,7 +613,7 @@ describe("ZToken Test", () => {
         zToken.connect(admin).setMintBeneficiary(hre.ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(
         zToken,
-        "ZeroAddressPassed"
+        ZERO_ADDRESS_ERR
       );
     });
   });
