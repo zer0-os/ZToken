@@ -1,6 +1,6 @@
 import * as hre from "hardhat";
 import { expect } from "chai";
-import { ZToken, ZToken__factory } from "../typechain/index.ts";
+import { ZToken, ZToken__factory } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import {
@@ -10,21 +10,21 @@ import {
   INVALID_TIME_ERR,
   ZERO_ADDRESS_ERR,
   ZERO_INITIAL_SUPPLY_ERR,
-} from "./helpers/errors.ts";
+} from "./helpers/errors";
 import {
   FINAL_INFLATION_RATE_DEFAULT,
   INFLATION_RATES_DEFAULT,
   INITIAL_SUPPLY_DEFAULT,
+  MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
   ADMIN_DELAY_DEFAULT,
-  FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
-} from "./helpers/constants.ts";
-
+} from "./helpers/constants";
+import { runZTokenCampaign } from "../src/deploy/campaign/campaign";
 import {
   getTokensPerPeriod,
   getYearlyMintableTokens,
   getMintableTokensForYear,
-} from "./helpers/inflation.ts";
+} from "./helpers/inflation";
 
 
 const tokenName = "Z";
@@ -45,17 +45,29 @@ describe("ZToken Test", () => {
     [admin, beneficiary, randomAcc] = await hre.ethers.getSigners();
 
     ZTokenFactory = await hre.ethers.getContractFactory("ZToken");
-    zToken = await ZTokenFactory.deploy(
-      tokenName,
-      tokenSymbol,
-      admin.address,
-      ADMIN_DELAY_DEFAULT,
-      admin.address,
-      beneficiary.address,
-      INITIAL_SUPPLY_DEFAULT,
-      INFLATION_RATES_DEFAULT,
-      FINAL_INFLATION_RATE_DEFAULT,
-    );
+
+    // set ENV vars to test config functions as well
+    process.env.ENV_LEVEL = "dev";
+    process.env.Z_TOKEN_NAME = tokenName;
+    process.env.Z_TOKEN_SYMBOL = tokenSymbol;
+    process.env.TOKEN_ADMIN_ADDRESS = admin.address;
+    process.env.TOKEN_MINTER_ADDRESS = admin.address;
+    process.env.TOKEN_MINT_BENEFICIARY_ADDRESS = beneficiary.address;
+    process.env.INITIAL_ADMIN_DELAY = ADMIN_DELAY_DEFAULT.toString();
+    process.env.INITIAL_TOKEN_SUPPLY = INITIAL_SUPPLY_DEFAULT.toString();
+    process.env.ANNUAL_INFLATION_RATES = `${INFLATION_RATES_DEFAULT.map(r => r.toString())}`;
+    process.env.FINAL_INFLATION_RATE = FINAL_INFLATION_RATE_DEFAULT.toString();
+    process.env.MONGO_DB_URI = "mongodb://localhost:27018";
+    process.env.MONGO_DB_NAME = "z-tokens";
+    process.env.ARCHIVE_PREVIOUS_DB_VERSION = "false";
+    process.env.VERIFY_CONTRACTS = "false";
+
+    const campaign = await runZTokenCampaign({
+      deployAdmin: admin,
+    });
+
+    ({ zToken } = campaign);
+
     initialTotalSupply = await zToken.baseSupply();
 
     deployTime = await zToken.DEPLOY_TIME();
@@ -594,7 +606,7 @@ describe("ZToken Test", () => {
       // previous 12th year leftoved
       let tokenAmountRef = getTokensPerPeriod(33, YEAR_IN_SECONDS - year12Period);
       // full years passed
-      // all of the years will have the same amount minted, because we start after the plateau, so rate is always 1.5%
+      // all the years will have the same amount minted, because we start after the plateau, so rate is always 1.5%
       tokenAmountRef += getYearlyMintableTokens(13) * 20n; // 13th to 32nd year
       // 33rd year period
       tokenAmountRef += getTokensPerPeriod(33, newYearPeriod);
@@ -673,7 +685,7 @@ describe("ZToken Test", () => {
         zToken.connect(admin).setMintBeneficiary(hre.ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(
         zToken,
-        "ZeroAddressPassed"
+        ZERO_ADDRESS_ERR
       );
     });
   });
