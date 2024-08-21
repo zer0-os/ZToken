@@ -559,6 +559,15 @@ describe("ZToken Test", () => {
       expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
       expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(0n);
     });
+
+    it("should emit TWO Transfer events upon transfer to token address", async () => {
+      const transferAmt = 13546846845n;
+
+      await expect(
+        zToken.connect(beneficiary).transfer(zToken.target, transferAmt)
+      ).to.emit(zToken, "Transfer").withArgs(beneficiary.address, zToken.target, transferAmt)
+        .and.to.emit(zToken, "Transfer").withArgs(beneficiary.address, hre.ethers.ZeroAddress, transferAmt);
+    });
   });
 
   describe("#setMintBeneficiary()", () => {

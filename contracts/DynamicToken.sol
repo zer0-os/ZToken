@@ -217,9 +217,14 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
 
     /**
      * @dev Overriden ERC20 function that will burn the amount of tokens transferred to this address.
+     *
+     * This function will emit 2 Transfer events to signify both operations that happened:
+     * 1. Transfer from the sender to this contract address.
+     * 2. Transfer from this contract address to the zero address to signify the burn.
      */
     function _update(address from, address to, uint256 value) internal override {
         if (to == address(this)) {
+            emit Transfer(from, to, value);
             return super._update(from, address(0), value);
         }
 
