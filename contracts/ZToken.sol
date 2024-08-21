@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { AccessControlDefaultAdminRules } from "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
 import { IZToken } from "./IZToken.sol";
 import { DynamicToken } from "./DynamicToken.sol";
 
 
-contract ZToken is DynamicToken, AccessControl, IZToken {
+contract ZToken is DynamicToken, AccessControlDefaultAdminRules, IZToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /*
@@ -30,6 +30,7 @@ contract ZToken is DynamicToken, AccessControl, IZToken {
         string memory _name,
         string memory _symbol,
         address _defaultAdmin,
+        uint48 _initialAdminDelay,
         address _minter,
         address _mintBeneficiary,
         uint256 _initialSupplyBase, // without the decimal part!
@@ -41,15 +42,17 @@ contract ZToken is DynamicToken, AccessControl, IZToken {
         _initialSupplyBase,
         _inflationRates,
         _finalInflationRate
+    )
+    AccessControlDefaultAdminRules(
+        _initialAdminDelay,
+        _defaultAdmin
     ) {
         if (
-            _defaultAdmin == address(0)
-            || _minter == address(0)
+            _minter == address(0)
             || _mintBeneficiary == address(0)
         ) revert ZeroAddressPassed();
 
         _mint(_mintBeneficiary, baseSupply());
-        _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
         _grantRole(MINTER_ROLE, _minter);
 
         mintBeneficiary = _mintBeneficiary;

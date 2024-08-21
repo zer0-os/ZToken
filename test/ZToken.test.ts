@@ -4,7 +4,7 @@ import { ZToken, ZToken__factory } from "../typechain/index.ts";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import {
-  AUTH_ERROR,
+  AUTH_ERROR, INVALID_DEFAULT_ADMIN_ERR,
   INVALID_INFLATION_ARRAY_ERR,
   INVALID_TIME_ERR,
   ZERO_ADDRESS_ERR,
@@ -15,7 +15,8 @@ import {
   INFLATION_RATES_DEFAULT, INITIAL_SUPPLY_DEFAULT,
   MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
-} from "./helpers/inflation.ts";
+  ADMIN_DELAY_DEFAULT,
+} from "./helpers/constants.ts";
 
 
 const tokenName = "Z";
@@ -40,6 +41,7 @@ describe("ZToken Test", () => {
       tokenName,
       tokenSymbol,
       admin.address,
+      ADMIN_DELAY_DEFAULT,
       admin.address,
       beneficiary.address,
       INITIAL_SUPPLY_DEFAULT,
@@ -63,6 +65,7 @@ describe("ZToken Test", () => {
           tokenName,
           tokenSymbol,
           admin.address,
+          ADMIN_DELAY_DEFAULT,
           admin.address,
           beneficiary.address,
           0,
@@ -83,6 +86,7 @@ describe("ZToken Test", () => {
           tokenName,
           tokenSymbol,
           admin.address,
+          ADMIN_DELAY_DEFAULT,
           admin.address,
           beneficiary.address,
           INITIAL_SUPPLY_DEFAULT,
@@ -103,6 +107,7 @@ describe("ZToken Test", () => {
           tokenName,
           tokenSymbol,
           admin.address,
+          ADMIN_DELAY_DEFAULT,
           admin.address,
           beneficiary.address,
           INITIAL_SUPPLY_DEFAULT,
@@ -124,6 +129,7 @@ describe("ZToken Test", () => {
         tokenName,
         tokenSymbol,
         admin.address,
+        ADMIN_DELAY_DEFAULT,
         admin.address,
         beneficiary.address,
         INITIAL_SUPPLY_DEFAULT,
@@ -144,6 +150,7 @@ describe("ZToken Test", () => {
           tokenName,
           tokenSymbol,
           hre.ethers.ZeroAddress,
+          ADMIN_DELAY_DEFAULT,
           admin.address,
           beneficiary.address,
           INITIAL_SUPPLY_DEFAULT,
@@ -152,7 +159,7 @@ describe("ZToken Test", () => {
         )
       ).to.be.revertedWithCustomError(
         zToken,
-        ZERO_ADDRESS_ERR
+        INVALID_DEFAULT_ADMIN_ERR
       );
 
       await expect(
@@ -160,6 +167,7 @@ describe("ZToken Test", () => {
           tokenName,
           tokenSymbol,
           admin.address,
+          ADMIN_DELAY_DEFAULT,
           hre.ethers.ZeroAddress,
           beneficiary.address,
           INITIAL_SUPPLY_DEFAULT,
@@ -176,6 +184,7 @@ describe("ZToken Test", () => {
           tokenName,
           tokenSymbol,
           admin.address,
+          ADMIN_DELAY_DEFAULT,
           admin.address,
           hre.ethers.ZeroAddress,
           INITIAL_SUPPLY_DEFAULT,
@@ -227,24 +236,76 @@ describe("ZToken Test", () => {
 
       expect(await zToken.hasRole(minterRole, admin.address)).to.be.true;
     });
+  });
 
-    it("should be able to reassign DEFAULT_ADMIN_ROLE to another address", async () => {
+  describe("AccessControl Default Admin Rules", () => {
+    it("should be able to reassign DEFAULT_ADMIN_ROLE to another address with default delay", async () => {
       const adminRole = await zToken.DEFAULT_ADMIN_ROLE();
       expect(await zToken.hasRole(adminRole, beneficiary.address)).to.be.false;
 
-      await zToken.connect(admin).grantRole(adminRole, beneficiary.address);
+      await zToken.connect(admin).beginDefaultAdminTransfer(beneficiary.address);
+      const curTime = await time.latest();
 
-      expect(await zToken.hasRole(adminRole, admin.address)).to.be.true;
-      expect(await zToken.hasRole(adminRole, beneficiary.address)).to.be.true;
+      const [ pendingAdmin, schedule ] = await zToken.pendingDefaultAdmin();
+      expect(pendingAdmin).to.eq(beneficiary.address);
+      expect(schedule).to.eq(BigInt(curTime) + ADMIN_DELAY_DEFAULT);
 
-      await zToken.connect(admin).revokeRole(adminRole, admin.address);
+      await time.increase(ADMIN_DELAY_DEFAULT + 1n);
+
+      await zToken.connect(beneficiary).acceptDefaultAdminTransfer();
 
       expect(await zToken.hasRole(adminRole, admin.address)).to.be.false;
+      expect(await zToken.hasRole(adminRole, beneficiary.address)).to.be.true;
+      expect(await zToken.defaultAdmin()).to.eq(beneficiary.address);
 
       // assign back
-      await zToken.connect(beneficiary).grantRole(adminRole, admin.address);
+      await zToken.connect(beneficiary).beginDefaultAdminTransfer(admin.address);
+
+      await time.increase(ADMIN_DELAY_DEFAULT + 1n);
+
+      await zToken.connect(admin).acceptDefaultAdminTransfer();
 
       expect(await zToken.hasRole(adminRole, admin.address)).to.be.true;
+      expect(await zToken.defaultAdmin()).to.eq(admin.address);
+    });
+
+    it("should successfully change admin delay and change to new admin after", async () => {
+      const newDelay = 71231n;
+
+      await zToken.connect(admin).changeDefaultAdminDelay(newDelay);
+
+      expect(await zToken.defaultAdminDelay()).to.eq(ADMIN_DELAY_DEFAULT);
+
+      await time.increase(ADMIN_DELAY_DEFAULT - newDelay + 1n); // as per contract rules
+
+      expect(await zToken.defaultAdminDelay()).to.eq(newDelay);
+
+      await zToken.connect(admin).beginDefaultAdminTransfer(randomAcc.address);
+
+      await time.increase(newDelay);
+
+      await zToken.connect(randomAcc).acceptDefaultAdminTransfer();
+
+      expect(await zToken.defaultAdmin()).to.eq(randomAcc.address);
+
+      // assign back
+      await zToken.connect(randomAcc).beginDefaultAdminTransfer(admin.address);
+
+      await time.increase(newDelay);
+
+      await zToken.connect(admin).acceptDefaultAdminTransfer();
+    });
+
+    it("should cancel the admin transfer during the delay period", async () => {
+      await zToken.connect(admin).beginDefaultAdminTransfer(beneficiary.address);
+
+      await time.increase(ADMIN_DELAY_DEFAULT / 2n);
+
+      await zToken.connect(admin).cancelDefaultAdminTransfer();
+
+      const [ pendingAdmin, schedule ] = await zToken.pendingDefaultAdmin();
+      expect(pendingAdmin).to.eq(hre.ethers.ZeroAddress);
+      expect(schedule).to.eq(0n);
     });
   });
 
@@ -498,6 +559,15 @@ describe("ZToken Test", () => {
       expect(adminBalanceBefore - adminBalanceAfter).to.eq(transferAmt);
       expect(tokenSupplyBefore - tokenSupplyAfter).to.eq(0n);
     });
+
+    it("should emit TWO Transfer events upon transfer to token address", async () => {
+      const transferAmt = 13546846845n;
+
+      await expect(
+        zToken.connect(beneficiary).transfer(zToken.target, transferAmt)
+      ).to.emit(zToken, "Transfer").withArgs(beneficiary.address, zToken.target, transferAmt)
+        .and.to.emit(zToken, "Transfer").withArgs(beneficiary.address, hre.ethers.ZeroAddress, transferAmt);
+    });
   });
 
   describe("#setMintBeneficiary()", () => {
@@ -545,6 +615,7 @@ describe("Minting scenarios on clean state.", () => {
       tokenName,
       tokenSymbol,
       admin.address,
+      ADMIN_DELAY_DEFAULT,
       admin.address,
       beneficiary.address,
       INITIAL_SUPPLY_DEFAULT,
