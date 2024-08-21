@@ -15,9 +15,8 @@ import {
   FINAL_INFLATION_RATE_DEFAULT,
   INFLATION_RATES_DEFAULT,
   INITIAL_SUPPLY_DEFAULT,
-  MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
-  ADMIN_DELAY_DEFAULT,
+  ADMIN_DELAY_DEFAULT, FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
 } from "./helpers/constants";
 import { runZTokenCampaign } from "../src/deploy/campaign/campaign";
 import {
@@ -155,15 +154,15 @@ describe("ZToken Test", () => {
         FINAL_INFLATION_RATE_DEFAULT,
       );
 
-      let time = deployTime;
+      let curTime = deployTime;
 
       // From 1 `year` to `inflationRatesInvalid.length` - 1 cause first rate is 0n,
       // and last rate should be 1.5%
       for (let year = 1; year < inflationRatesInvalid.length; year++) {
-        time += YEAR_IN_SECONDS;
+        curTime += YEAR_IN_SECONDS;
 
         expect(
-          await token.calculateMintableTokens(time)
+          await token.calculateMintableTokens(curTime)
         ).to.be.equal(
           0n
         );
@@ -185,9 +184,9 @@ describe("ZToken Test", () => {
         finalRate,
       );
 
-      const time = deployTime + YEAR_IN_SECONDS * 13n;
+      const curTime = deployTime + YEAR_IN_SECONDS * 13n;
 
-      const mintAmount = await token.calculateMintableTokens(time);
+      const mintAmount = await token.calculateMintableTokens(curTime);
 
       let sum = 0n;
       for (let year = 1; year < INFLATION_RATES_DEFAULT.length; year++) {
@@ -196,7 +195,7 @@ describe("ZToken Test", () => {
       }
 
       const rate = await token.currentInflationRate(
-        (time - deployTime) / YEAR_IN_SECONDS
+        (curTime - deployTime) / YEAR_IN_SECONDS
       );
 
       expect(
