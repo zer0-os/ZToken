@@ -4,20 +4,27 @@ import { ZToken, ZToken__factory } from "../typechain/index.ts";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import {
-  AUTH_ERROR, INVALID_DEFAULT_ADMIN_ERR,
+  AUTH_ERROR,
+  INVALID_DEFAULT_ADMIN_ERR,
   INVALID_INFLATION_ARRAY_ERR,
   INVALID_TIME_ERR,
   ZERO_ADDRESS_ERR,
   ZERO_INITIAL_SUPPLY_ERR,
 } from "./helpers/errors.ts";
 import {
-  FINAL_INFLATION_RATE_DEFAULT, getTokensPerPeriod, getYearlyMintableTokens,
-  INFLATION_RATES_DEFAULT, INITIAL_SUPPLY_DEFAULT,
-  getMintableTokensForYear,
+  FINAL_INFLATION_RATE_DEFAULT,
+  INFLATION_RATES_DEFAULT,
+  INITIAL_SUPPLY_DEFAULT,
   YEAR_IN_SECONDS,
   ADMIN_DELAY_DEFAULT,
   FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
 } from "./helpers/constants.ts";
+
+import {
+  getTokensPerPeriod,
+  getYearlyMintableTokens,
+  getMintableTokensForYear,
+} from "./helpers/calculates.ts";
 
 
 const tokenName = "Z";
@@ -141,7 +148,7 @@ describe("ZToken Test", () => {
       // From 1 `year` to `inflationRatesInvalid.length` - 1 cause first rate is 0n,
       // and last rate should be 1.5%
       for (let year = 1; year < inflationRatesInvalid.length; year++) {
-        time += 31536000n;
+        time += YEAR_IN_SECONDS;
 
         expect(
           await token.calculateMintableTokens(time)
@@ -166,7 +173,7 @@ describe("ZToken Test", () => {
         finalRate,
       );
 
-      const time = deployTime + 31536000n * 13n;
+      const time = deployTime + YEAR_IN_SECONDS * 13n;
 
       const mintAmount = await token.calculateMintableTokens(time);
 
@@ -177,7 +184,7 @@ describe("ZToken Test", () => {
       }
 
       const rate = await token.currentInflationRate(
-        (time - deployTime) / 31536000n
+        (time - deployTime) / YEAR_IN_SECONDS
       );
 
       expect(
@@ -502,7 +509,7 @@ describe("ZToken Test", () => {
       const balanceDiff = balanceAfter - balanceBefore;
 
       const periodAmt = tokensPerYear3 * (year3Period + 1n) / YEAR_IN_SECONDS;
-      secondMintAmtRef = tokensPerYear * (YEAR_IN_SECONDS / 2n) / 31536000n + tokensPerYear2 + periodAmt;
+      secondMintAmtRef = tokensPerYear * (YEAR_IN_SECONDS / 2n) / YEAR_IN_SECONDS + tokensPerYear2 + periodAmt;
 
       expect(balanceDiff).to.eq(secondMintAmtRef);
 
@@ -723,7 +730,7 @@ describe("Minting scenarios on clean state.", () => {
     for (let year = 0; year < 16; year++) {
       const tokensFromContract = await zToken.calculateMintableTokens(currentTime);
       // + year each iteration
-      currentTime += 31536000n;
+      currentTime += YEAR_IN_SECONDS;
       amountRef += getYearlyMintableTokens(year);
 
       expect(
@@ -740,7 +747,7 @@ describe("Minting scenarios on clean state.", () => {
     let minted = 0n;
 
     for (let year = 1; year < 10; year++) {
-      currentTime += 31536000n;
+      currentTime += YEAR_IN_SECONDS;
 
       await time.increaseTo(currentTime - 1n);
 
