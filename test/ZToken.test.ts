@@ -42,28 +42,24 @@ describe("ZToken Test", () => {
 
     ZTokenFactory = await hre.ethers.getContractFactory("ZToken");
 
-    const config = {
-      env: "dev",
-      deployAdmin: admin,
-      zTokenName: tokenName,
-      zTokenSymbol: tokenSymbol,
-      tokenAdminAddress: admin.address,
-      minterAddress: admin.address,
-      mintBeneficiaryAddress: beneficiary.address,
-      initialAdminDelay: ADMIN_DELAY_DEFAULT,
-      initialTotalSupply: INITIAL_SUPPLY_DEFAULT,
-      annualInflationRates: INFLATION_RATES_DEFAULT,
-      finalInflationRate: FINAL_INFLATION_RATE_DEFAULT,
-      postDeploy: {
-        verifyContracts: false,
-        tenderlyProjectSlug: "",
-        monitorContracts: false,
-      },
-    };
+    // set ENV vars to test config functions as well
+    process.env.ENV_LEVEL = "dev";
+    process.env.Z_TOKEN_NAME = tokenName;
+    process.env.Z_TOKEN_SYMBOL = tokenSymbol;
+    process.env.TOKEN_ADMIN_ADDRESS = admin.address;
+    process.env.TOKEN_MINTER_ADDRESS = admin.address;
+    process.env.TOKEN_MINT_BENEFICIARY_ADDRESS = beneficiary.address;
+    process.env.INITIAL_ADMIN_DELAY = ADMIN_DELAY_DEFAULT.toString();
+    process.env.INITIAL_TOKEN_SUPPLY = INITIAL_SUPPLY_DEFAULT.toString();
+    process.env.ANNUAL_INFLATION_RATES = `${INFLATION_RATES_DEFAULT.map(r => r.toString())}`;
+    process.env.FINAL_INFLATION_RATE = FINAL_INFLATION_RATE_DEFAULT.toString();
+    process.env.MONGO_DB_URI = "mongodb://localhost:27018";
+    process.env.MONGO_DB_NAME = "z-tokens";
+    process.env.ARCHIVE_PREVIOUS_DB_VERSION = "false";
+    process.env.VERIFY_CONTRACTS = "false";
 
     const campaign = await runZTokenCampaign({
       deployAdmin: admin,
-      config,
     });
 
     ({ zToken } = campaign);
