@@ -4,7 +4,8 @@ import { ZToken, ZToken__factory } from "../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import {
-  AUTH_ERROR, INVALID_DEFAULT_ADMIN_ERR,
+  AUTH_ERROR,
+  INVALID_DEFAULT_ADMIN_ERR,
   INVALID_INFLATION_ARRAY_ERR,
   INVALID_TIME_ERR,
   ZERO_ADDRESS_ERR,
@@ -12,15 +13,17 @@ import {
 } from "./helpers/errors";
 import {
   FINAL_INFLATION_RATE_DEFAULT,
-  getTokensPerPeriod,
-  getYearlyMintableTokens,
   INFLATION_RATES_DEFAULT,
   INITIAL_SUPPLY_DEFAULT,
-  MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
   YEAR_IN_SECONDS,
-  ADMIN_DELAY_DEFAULT,
+  ADMIN_DELAY_DEFAULT, FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT,
 } from "./helpers/constants";
 import { runZTokenCampaign } from "../src/deploy/campaign/campaign";
+import {
+  getTokensPerPeriod,
+  getYearlyMintableTokens,
+  getMintableTokensForYear,
+} from "./helpers/inflation";
 
 
 const tokenName = "Z";
@@ -134,6 +137,78 @@ describe("ZToken Test", () => {
         zToken,
         INVALID_INFLATION_ARRAY_ERR
       ).withArgs(inflationRatesInvalid);
+    });
+
+    it("Should return 0 each year if INLFATION RATES passed as zeros", async () => {
+      const inflationRatesInvalid = [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
+
+      const token = await ZTokenFactory.deploy(
+        tokenName,
+        tokenSymbol,
+        admin.address,
+        ADMIN_DELAY_DEFAULT,
+        admin.address,
+        beneficiary.address,
+        INITIAL_SUPPLY_DEFAULT,
+        inflationRatesInvalid,
+        FINAL_INFLATION_RATE_DEFAULT,
+      );
+
+      let curTime = deployTime;
+
+      // From 1 `year` to `inflationRatesInvalid.length` - 1 cause first rate is 0n,
+      // and last rate should be 1.5%
+      for (let year = 1; year < inflationRatesInvalid.length; year++) {
+        curTime += YEAR_IN_SECONDS;
+
+        expect(
+          await token.calculateMintableTokens(curTime)
+        ).to.be.equal(
+          0n
+        );
+      }
+    });
+
+    it("Should return 0 tokens in 13 year if FINAL INLFATION RATE is passed as 0n", async () => {
+      const finalRate = 0n;
+
+      const token = await ZTokenFactory.deploy(
+        tokenName,
+        tokenSymbol,
+        admin.address,
+        ADMIN_DELAY_DEFAULT,
+        admin.address,
+        beneficiary.address,
+        INITIAL_SUPPLY_DEFAULT,
+        INFLATION_RATES_DEFAULT,
+        finalRate,
+      );
+
+      const curTime = deployTime + YEAR_IN_SECONDS * 13n;
+
+      const mintAmount = await token.calculateMintableTokens(curTime);
+
+      let sum = 0n;
+      for (let year = 1; year < INFLATION_RATES_DEFAULT.length; year++) {
+        sum += hre.ethers.parseEther(INITIAL_SUPPLY_DEFAULT.toString()) *
+        INFLATION_RATES_DEFAULT[year] / 10000n;
+      }
+
+      const rate = await token.currentInflationRate(
+        (curTime - deployTime) / YEAR_IN_SECONDS
+      );
+
+      expect(
+        mintAmount
+      ).to.be.equal(
+        sum
+      );
+
+      expect(
+        rate
+      ).to.be.equal(
+        0n
+      );
     });
 
     it("should deploy with infation rates array of any length and return final rate correctly", async () => {
@@ -383,7 +458,7 @@ describe("ZToken Test", () => {
 
       expect(tokensPerYear).to.eq(tokensPerYearRef);
 
-      const fixedFinalRateAmtRef = 151515151515000000000000000n;
+      const fixedFinalRateAmtRef = FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT;
 
       tokensPerYear = await zToken.tokensPerYear(INFLATION_RATES_DEFAULT.length + 1);
       expect(tokensPerYear).to.eq(fixedFinalRateAmtRef);
@@ -445,7 +520,7 @@ describe("ZToken Test", () => {
       const balanceDiff = balanceAfter - balanceBefore;
 
       const periodAmt = tokensPerYear3 * (year3Period + 1n) / YEAR_IN_SECONDS;
-      secondMintAmtRef = tokensPerYear * (YEAR_IN_SECONDS / 2n) / 31536000n + tokensPerYear2 + periodAmt;
+      secondMintAmtRef = tokensPerYear * (YEAR_IN_SECONDS / 2n) / YEAR_IN_SECONDS + tokensPerYear2 + periodAmt;
 
       expect(balanceDiff).to.eq(secondMintAmtRef);
 
@@ -466,7 +541,7 @@ describe("ZToken Test", () => {
       await zToken.connect(admin).mint();
       const balanceAfter1 = await zToken.balanceOf(beneficiary.address);
 
-      const fullYear3 = MINTABLE_YEARLY_TOKENS_REF_DEFAULT[3];
+      const fullYear3 = getMintableTokensForYear(3);
       const closeoutRefAmt = (YEAR_IN_SECONDS - year3Period - 1n) * fullYear3 / YEAR_IN_SECONDS;
       expect(balanceAfter1 - balanceBefore1).to.eq(closeoutRefAmt);
 
@@ -489,7 +564,7 @@ describe("ZToken Test", () => {
           const balanceAfter = await zToken.balanceOf(beneficiary.address);
           timeOfMint = BigInt(await time.latest());
 
-          const yearly = MINTABLE_YEARLY_TOKENS_REF_DEFAULT[4];
+          const yearly = getMintableTokensForYear(4);
           const periodAmtRef = yearly * (period + 1n) / YEAR_IN_SECONDS;
 
           expect(balanceAfter - balanceBefore).to.eq(periodAmtRef, idx.toString());
@@ -509,7 +584,7 @@ describe("ZToken Test", () => {
 
       let tokenAmountRef = getTokensPerPeriod(4, YEAR_IN_SECONDS - (year4Period + 3n));
       for (let year = 5; year < 12; year++) {
-        tokenAmountRef += MINTABLE_YEARLY_TOKENS_REF_DEFAULT[year];
+        tokenAmountRef += getMintableTokensForYear(year);
       }
 
       tokenAmountRef += getTokensPerPeriod(12, year12Period);
@@ -666,7 +741,7 @@ describe("Minting scenarios on clean state.", () => {
     for (let year = 0; year < 16; year++) {
       const tokensFromContract = await zToken.calculateMintableTokens(currentTime);
       // + year each iteration
-      currentTime += 31536000n;
+      currentTime += YEAR_IN_SECONDS;
       amountRef += getYearlyMintableTokens(year);
 
       expect(
@@ -683,7 +758,7 @@ describe("Minting scenarios on clean state.", () => {
     let minted = 0n;
 
     for (let year = 1; year < 10; year++) {
-      currentTime += 31536000n;
+      currentTime += YEAR_IN_SECONDS;
 
       await time.increaseTo(currentTime - 1n);
 

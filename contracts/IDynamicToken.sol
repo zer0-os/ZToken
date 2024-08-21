@@ -15,15 +15,15 @@ interface IDynamicToken is IERC20 {
 
     function lastMintTime() external view returns (uint256);
 
-    // eslint-disable-next-line var-name-mixedcase
+    // solhint-disable-next-line func-name-mixedcase
     function DEPLOY_TIME() external view returns (uint256);
 
     function yearSinceDeploy(uint256 time) external view returns (uint256);
 
-    // eslint-disable-next-line var-name-mixedcase
+    // solhint-disable-next-line func-name-mixedcase
     function ANNUAL_INFLATION_RATES(uint256 index) external view returns (uint16);
 
-    // eslint-disable-next-line var-name-mixedcase
+    // solhint-disable-next-line func-name-mixedcase
     function FINAL_INFLATION_RATE() external view returns (uint16);
 
     function currentInflationRate(uint256 yearIndex) external view returns (uint256);
