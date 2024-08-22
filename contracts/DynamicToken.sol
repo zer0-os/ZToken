@@ -39,7 +39,7 @@ abstract contract DynamicToken is ERC20, IDynamicToken {
      * and is set only once in the constructor, so it can be considered immutable.
      * We use capitalized snake case to signify that.
      */
-    // eslint-disable-next-line var-name-mixedcase
+    // solhint-disable-next-line var-name-mixedcase
     uint16[] public ANNUAL_INFLATION_RATES;
     /**
      * @notice The final inflation rate after all the yearly rates have been applied.
