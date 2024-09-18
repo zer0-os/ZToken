@@ -13,6 +13,10 @@
     "node": ">=18",
     "npm": ">=10"
   },
+  "files": [
+    "contracts/",
+    "README.md"
+  ],
   "scripts": {
     "compile": "hardhat compile",
     "lint-sol": "yarn solhint ./contracts/**/*.sol",
