@@ -51,24 +51,58 @@ const config : HardhatUserConfig = {
   networks: {
     mainnet: {
       url: `${process.env.MAINNET_RPC_URL}`,
-      gasPrice: 80000000000,
+      accounts: [
+        // `${process.env.MAINNET_DEPLOY_ADMIN}`,
+      ],
     },
     sepolia: {
       url: `${process.env.SEPOLIA_RPC_URL}`,
       timeout: 10000000,
-      // accounts: [ // Comment out for CI, uncomment this when using Sepolia
-      //   `${process.env.DEPLOY_ADMIN_PRIVATE_KEY}`,
+      accounts: [ // Comment out for CI, uncomment this when using Sepolia
+        // `${process.env.DEPLOY_ADMIN_PRIVATE_KEY}`,
       //   `${process.env.TESTNET_PRIVATE_KEY_A}`,
       //   `${process.env.TESTNET_PRIVATE_KEY_B}`,
       //   `${process.env.TESTNET_PRIVATE_KEY_C}`,
       //   `${process.env.TESTNET_PRIVATE_KEY_D}`,
       //   `${process.env.TESTNET_PRIVATE_KEY_E}`,
       //   `${process.env.TESTNET_PRIVATE_KEY_F}`,
-      // ],
+      ],
+    },
+    zephyr: {
+      chainId: 1417429182,
+      url: `${process.env.ZEPHYR_RPC_URL}`,
+      accounts: [
+        // `${process.env.DEPLOY_ADMIN_PRIVATE_KEY}`,
+      ],
+    },
+    zchain: {
+      chainId: 9369,
+      url: `${process.env.ZCHAIN_RPC_URL}`,
+      accounts: [
+        // `${process.env.DEPLOY_ADMIN_PRIVATE_KEY}`,
+      ],
     },
   },
   etherscan: {
     apiKey: `${process.env.ETHERSCAN_API_KEY}`,
+    customChains: [
+      {
+        network: "zephyr",
+        chainId: 1417429182,
+        urls: {
+          apiURL: "https://zephyr-blockscout.eu-north-2.gateway.fm/api/",
+          browserURL: "https://zephyr-blockscout.eu-north-2.gateway.fm/",
+        },
+      },
+      {
+        network: "zchain",
+        chainId: 9369,
+        urls: {
+          apiURL: "https://z-chain-blockscout.eu-north-2.gateway.fm/api/",
+          browserURL: "https://z-chain-blockscout.eu-north-2.gateway.fm/",
+        },
+      },
+    ],
   },
 };
 
