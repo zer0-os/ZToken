@@ -541,7 +541,7 @@ describe("ZToken Test", () => {
       await zToken.connect(admin).mint();
       const balanceAfter1 = await zToken.balanceOf(beneficiary.address);
 
-      const fullYear3 = getMintableTokensForYear(3);
+      const fullYear3 = getMintableTokensForYear(3n);
       const closeoutRefAmt = (YEAR_IN_SECONDS - year3Period - 1n) * fullYear3 / YEAR_IN_SECONDS;
       expect(balanceAfter1 - balanceBefore1).to.eq(closeoutRefAmt);
 
@@ -564,7 +564,7 @@ describe("ZToken Test", () => {
           const balanceAfter = await zToken.balanceOf(beneficiary.address);
           timeOfMint = BigInt(await time.latest());
 
-          const yearly = getMintableTokensForYear(4);
+          const yearly = getMintableTokensForYear(4n);
           const periodAmtRef = yearly * (period + 1n) / YEAR_IN_SECONDS;
 
           expect(balanceAfter - balanceBefore).to.eq(periodAmtRef, idx.toString());
@@ -582,12 +582,12 @@ describe("ZToken Test", () => {
       await zToken.connect(admin).mint();
       const balanceAfter = await zToken.balanceOf(beneficiary.address);
 
-      let tokenAmountRef = getTokensPerPeriod(4, YEAR_IN_SECONDS - (year4Period + 3n));
+      let tokenAmountRef = getTokensPerPeriod(4n, YEAR_IN_SECONDS - (year4Period + 3n));
       for (let year = 5; year < 12; year++) {
-        tokenAmountRef += getMintableTokensForYear(year);
+        tokenAmountRef += getMintableTokensForYear(BigInt(year));
       }
 
-      tokenAmountRef += getTokensPerPeriod(12, year12Period);
+      tokenAmountRef += getTokensPerPeriod(12n, year12Period);
 
       expect(balanceAfter - balanceBefore).to.eq(tokenAmountRef);
     });
@@ -603,12 +603,12 @@ describe("ZToken Test", () => {
       const balanceAfter = await zToken.balanceOf(beneficiary.address);
 
       // previous 12th year leftoved
-      let tokenAmountRef = getTokensPerPeriod(33, YEAR_IN_SECONDS - year12Period);
+      let tokenAmountRef = getTokensPerPeriod(33n, YEAR_IN_SECONDS - year12Period);
       // full years passed
       // all the years will have the same amount minted, because we start after the plateau, so rate is always 1.5%
-      tokenAmountRef += getYearlyMintableTokens(13) * 20n; // 13th to 32nd year
+      tokenAmountRef += getYearlyMintableTokens(13n) * 20n; // 13th to 32nd year
       // 33rd year period
-      tokenAmountRef += getTokensPerPeriod(33, newYearPeriod);
+      tokenAmountRef += getTokensPerPeriod(33n, newYearPeriod);
 
       expect(balanceAfter - balanceBefore).to.eq(tokenAmountRef);
     });
@@ -688,6 +688,60 @@ describe("ZToken Test", () => {
       );
     });
   });
+
+  describe("Flow testing", () => {
+    it("should deposit, correctly calculate the rewards with a fixed inflation rate of 100%" +
+        "and claim it at the beginning of the 5th year", async () => {
+      const inflationRates = [0n, 10000n];
+      const finalInflationRate = 10000n;
+
+      const zToken2 = await ZTokenFactory.deploy(
+        tokenName,
+        tokenSymbol,
+        admin.address,
+        ADMIN_DELAY_DEFAULT,
+        admin.address,
+        beneficiary.address,
+        INITIAL_SUPPLY_DEFAULT,
+        inflationRates,
+        finalInflationRate,
+      );
+
+      const deployTime2 = await zToken2.DEPLOY_TIME();
+
+      let reference = 0n;
+      for (let year = 1; year <= 5; year++) {
+        const tokensPerYear = getMintableTokensForYear(
+          BigInt(year),
+          inflationRates,
+          finalInflationRate
+        );
+        reference += tokensPerYear;
+
+        const mintableTokens = await zToken2.calculateMintableTokens(
+          deployTime2 + YEAR_IN_SECONDS * BigInt(year)
+        );
+
+        expect(mintableTokens).to.eq(reference);
+      }
+
+      const beneficiaryBalBefore = await zToken2.balanceOf(beneficiary.address);
+
+      const totalSupplyBefore = await zToken2.totalSupply();
+
+      // mines a block in 1 sec when sending TX
+      await time.increaseTo(deployTime2 + YEAR_IN_SECONDS * 5n - 1n);
+
+      // mint at the end of 5th year
+      await zToken2.connect(admin).mint();
+      const beneficiaryBalAfter = await zToken2.balanceOf(beneficiary.address);
+      expect(beneficiaryBalAfter - beneficiaryBalBefore).to.eq(reference);
+
+      // check that total supply increased by the reference amount
+      const totalSupplyAfter = await zToken2.totalSupply();
+      expect(totalSupplyAfter - totalSupplyBefore).to.eq(reference);
+    });
+  });
 });
 
 describe("Minting scenarios on clean state.", () => {
@@ -728,7 +782,7 @@ describe("Minting scenarios on clean state.", () => {
       expect(
         minted
       ).to.be.equal(
-        getTokensPerPeriod(1, 1n),
+        getTokensPerPeriod(1n, 1n),
         second.toString()
       );
     }
@@ -742,7 +796,7 @@ describe("Minting scenarios on clean state.", () => {
       const tokensFromContract = await zToken.calculateMintableTokens(currentTime);
       // + year each iteration
       currentTime += YEAR_IN_SECONDS;
-      amountRef += getYearlyMintableTokens(year);
+      amountRef += getYearlyMintableTokens(BigInt(year));
 
       expect(
         tokensFromContract
@@ -771,7 +825,7 @@ describe("Minting scenarios on clean state.", () => {
       expect(
         minted
       ).to.be.equal(
-        getYearlyMintableTokens(year)
+        getYearlyMintableTokens(BigInt(year))
       );
     }
   });
@@ -788,7 +842,7 @@ describe("Minting scenarios on clean state.", () => {
 
     const totalSupplyAfter = await zToken.totalSupply();
 
-    const mintedAmtRef = getTokensPerPeriod(1, YEAR_IN_SECONDS / 2n);
+    const mintedAmtRef = getTokensPerPeriod(1n, YEAR_IN_SECONDS / 2n);
 
     expect(totalSupplyAfter - totalSupplyBefore).to.eq(mintedAmtRef);
 
@@ -810,7 +864,7 @@ describe("Minting scenarios on clean state.", () => {
     await zToken.connect(admin).mint();
     const totalSupplyAfter2 = await zToken.totalSupply();
 
-    const mintedAmtRef2 = getTokensPerPeriod(1, newMintPeriod);
+    const mintedAmtRef2 = getTokensPerPeriod(1n, newMintPeriod);
 
     expect(totalSupplyAfter2 - totalSupplyBefore2).to.eq(mintedAmtRef2);
   });

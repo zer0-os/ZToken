@@ -7,21 +7,36 @@ import {
   YEAR_IN_SECONDS,
 } from "./constants";
 
-export const getMintableTokensForYear = (year : number) : bigint => {
-  const inflationRatesLength = INFLATION_RATES_DEFAULT.length;
-  const inflationRate = year < inflationRatesLength
-    ? INFLATION_RATES_DEFAULT[year]
+export const getMintableTokensForYear = (
+  year : bigint,
+  inflationRates ?: Array<bigint>,
+  finalInflationRate ?: bigint,
+  initialSupply ?: bigint,
+) : bigint => {
+  const rates : Array<bigint> = inflationRates
+    ? inflationRates
+    : INFLATION_RATES_DEFAULT.length;
+  const final : bigint = finalInflationRate
+    ? finalInflationRate
     : FINAL_INFLATION_RATE_DEFAULT;
+  const inflationRate = year < rates.length
+    ? rates[Number(year)]
+    : final;
+  const supply = initialSupply
+    ? initialSupply
+    : INITIAL_SUPPLY_DEFAULT;
 
-  return hre.ethers.parseEther(INITIAL_SUPPLY_DEFAULT.toString()) * inflationRate / 10000n;
+  return hre.ethers.parseEther(supply.toString()) * inflationRate / 10000n;
 };
 
-export const getYearlyMintableTokens = (yearIndex : number) : bigint =>
+// Returns the total mintable tokens for the specified year
+export const getYearlyMintableTokens = (yearIndex : bigint) : bigint =>
   getMintableTokensForYear(yearIndex) !== undefined
     ? getMintableTokensForYear(yearIndex)
     : FINAL_MINTABLE_YEARLY_TOKENS_REF_DEFAULT;
 
-export const getTokensPerPeriod = (yearIndex : number, periodLength : bigint) : bigint => {
+// Only for period during the specified year
+export const getTokensPerPeriod = (yearIndex : bigint, periodLength : bigint) : bigint => {
   const perYear = getYearlyMintableTokens(yearIndex);
 
   return periodLength * perYear / YEAR_IN_SECONDS;
